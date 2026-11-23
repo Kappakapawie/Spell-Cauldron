@@ -194,19 +194,64 @@ func _check_gameplay() -> void:
 		_fail("ctrl+click on score did not add 1000")
 	main._open_shop()
 	await process_frame
-	var up_row: Control = main.upgrade_rows["familiar"].row
-	main._cheat_click(up_row.get_global_rect().get_center(), true)
-	var hdr: Control = main.upgrade_rows["_header"].label
-	main._cheat_click(hdr.get_global_rect().get_center(), true)
+	var book: SpellBook = main.shop_panel
+	main._cheat_click(book.node_global_pos("familiar"), true)
+	main._cheat_click(book.node_global_pos("root"), true)
 	if not main.owned_upgrades.has("familiar") or main.total_stars() != 1000:
-		_fail("ctrl+click in Shelves menu: owl %s, stars %d" % [main.owned_upgrades.has("familiar"), main.total_stars()])
-	main._cheat_click(hdr.get_global_rect().get_center(), false)
-	main._cheat_click(up_row.get_global_rect().get_center(), false)
+		_fail("ctrl+click in spell book: owl %s, stars %d" % [main.owned_upgrades.has("familiar"), main.total_stars()])
+	main._cheat_click(book.node_global_pos("root"), false)
+	main._cheat_click(book.node_global_pos("familiar"), false)
 	if main.owned_upgrades.has("familiar") or main.total_stars() != 0:
-		_fail("alt+click in Shelves menu did not reset")
-	main.shop_panel.visible = false
+		_fail("alt+click in spell book did not reset")
+
+	# Spell book: hovering shows gibberish until learned; buying works through skill_buy.
+	var info: Dictionary = main.skill_info("lucky")
+	if SpellBook.garble(info.title, 0.0) == info.title or SpellBook.garble(info.title, 1.0) != info.title:
+		_fail("spell names are not garbled / revealed correctly")
+	main.level_records = {1: {"best": 100, "conquered": true}, 2: {"best": 100, "conquered": true},
+		3: {"best": 100, "conquered": true}, 4: {"best": 100, "conquered": true}, 5: {"best": 100, "conquered": true},
+		6: {"best": 100, "conquered": true}, 7: {"best": 100, "conquered": true}, 8: {"best": 100, "conquered": true}}
+	main.score = 1000
+	if not main.skill_buy("lucky") or not main.owned_upgrades.has("lucky") or main.score != 750:
+		_fail("learning Lucky cauldron in the spell book failed")
+	if not main.skill_buy("vision_shelf") or main.shelf_slots[PotionArt.VISION] != main.START_SLOTS + 1:
+		_fail("learning a Vision shelf slot in the spell book failed")
+	print("spell book: garble, learn spells ok (", SpellBook.garble("Lucky cauldron", 0.0), ")")
+	main.owned_upgrades = {}
+	main.level_records = {}
+	main.shelf_slots = {PotionArt.WISDOM: 3, PotionArt.VISION: 3}
+	book.close_book()
+
+	# Stirring: a short swipe to the right does nothing, a swipe left across the brew stirs.
+	main._start_level(1)
+	await process_frame
+	main._start_stir(Vector2(700, 380))
+	main._stir_motion(Vector2(800, 380))
+	if main.busy:
+		_fail("swiping right started a stir")
+	main._stop_stirring()
+	main._start_stir(Vector2(760, 380))
+	main._stir_motion(Vector2(560, 380))
+	if not main.busy:
+		_fail("swiping left across the brew did not stir")
+	await create_timer(1.6).timeout
+
+	# Where? costs 1 Wisdom + 1 Vision once per word, and counts as help.
+	main.potions = {PotionArt.WISDOM: 1, PotionArt.VISION: 1}
+	main._show_where_hint()
+	main._show_where_hint()
+	if main.potions[PotionArt.WISDOM] != 0 or main.potions[PotionArt.VISION] != 0 or not main.where_paid:
+		_fail("Where? should cost exactly 1 + 1 per word: %s" % main.potions)
+	if main.word_score() != 5:
+		_fail("Where? should count as help (5 points), got %d" % main.word_score())
+	main._start_level(6)
+	await process_frame
+	main._show_where_hint()
+	if main.where_paid:
+		_fail("Where? worked without potions")
+	print("swipe to stir and Where? cost ok")
 	main._cheat_click(main.progress_label.get_global_rect().get_center(), true)
-	if not main.complete_panel.visible or main.level_records.get(1, {}).get("best", 0) != 100:
+	if not main.complete_panel.visible or main.level_records.get(main.level, {}).get("best", 0) != 100:
 		_fail("ctrl+click on word counter did not finish the level with 100")
 	print("ctrl/alt shortcuts ok")
 

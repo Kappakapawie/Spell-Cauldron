@@ -9,15 +9,16 @@ Drag the right letters from the table into the word, then stir the brew to see i
 
 ## How to play
 - **Drag** letters from the table into the word.
-- **Stir** with the *Stir!* button, or draw a circle on the cauldron with your mouse.
-- **Where?** shows where a missing letter goes. **Meaning?** shows what the word means.
+- **Stir** by swiping left across the brew with your mouse.
+- **Wisdom / Vision** potions show the meaning / a picture. **Where?** (1 + 1 potion) shows where a letter goes.
+- **Shelves** opens the spell book: hover a spell to read it, hold the mouse to learn it, drag to look around.
 - Choose difficulty **1–10** at the top. Ten words complete a level.
 
 ## Testing shortcuts
 - **Ctrl+click** a value to fill it up / complete it, **Alt+click** to remove its progress:
   level stars, a potion row (shelf or button), Score (+1000 / 0), the "Word x / 10" counter
-  (finish the level with 100 / restart it), and in the Shelves menu: shelf rows, upgrade rows,
-  and the "your stars" header (all levels 100 / all cleared).
+  (finish the level with 100 / restart it), and in the spell book: shelf spells, upgrade spells,
+  and the cauldron in the middle of the tree (all levels 100 / all stars cleared).
 
 ## Project layout
 | Path | What it is |

@@ -18,7 +18,7 @@ const BREW_CENTER := Vector2(640, 380)   ## middle of the soup, seen from above
 const BREW_RADIUS := Vector2(290, 115)
 const PICTURE_CENTER := Vector2(640, 425)
 const ENGRAVING_Y := 560.0
-const STIR_TURNS := 0.9  ## how many full circles you need to draw to stir
+const STIR_SWIPE := 150.0  ## how far left (pixels) you swipe over the brew to stir
 
 var level := 1
 var word_number := 0
@@ -37,8 +37,8 @@ var busy := false
 var hint_count := 0
 
 var stirring := false
-var stir_last_angle := 0.0
-var stir_total := 0.0
+var stir_start := Vector2.ZERO
+var stir_last_x := 0.0
 var swirl_angle := 0.0:
 	set(value):
 		swirl_angle = value
@@ -92,9 +92,7 @@ const START_SLOTS := 3        ## potions of one kind a shelf holds at first
 const MAX_SLOTS := 10         ## the most a shelf can be upgraded to
 const POINTS_PER_POTION := 10 ## every potion earned beyond a full shelf becomes points
 var shelf_slots := {PotionArt.WISDOM: START_SLOTS, PotionArt.VISION: START_SLOTS}
-var shop_panel: PanelContainer
-var shop_rows := {}           ## kind -> {label: Label, button: Button}
-var shop_score_label: Label
+var shop_panel: SpellBook     ## the Shelves menu: a spell book with a skill tree
 
 ## Star upgrades: unlocked by your total level stars (sum of best stars, max 1000),
 ## then bought with score points in the Shelves menu.
@@ -112,8 +110,10 @@ var owned_upgrades := {}      ## upgrade id -> true
 var familiar_on := true       ## the owl can be switched off for a perfect run
 var familiar_time := 0.0
 var familiar_helped := false  ## the owl placed a letter in this word
+const WHERE_COST := 1         ## Where? costs this many Wisdom AND Vision potions
+var where_paid := false       ## Where? already paid for this word
+var where_button: Button
 var auto_done := {}           ## hidden-gap words: missing index -> placed by the owl
-var upgrade_rows := {}        ## upgrade id -> {label, button}
 var score := 0
 var score_incoming := 0       ## points still flying to the score counter
 var level_buttons: Array[Button] = []
@@ -170,25 +170,25 @@ func _process(delta: float) -> void:
 func _cheat_click(p: Vector2, fill: bool) -> bool:
 	var hit := false
 	if shop_panel.visible:
-		# Shelves menu: shelf rows, upgrade rows and the star total header.
-		for kind in shop_rows:
-			if (shop_rows[kind].row as Control).get_global_rect().has_point(p):
-				shelf_slots[kind] = MAX_SLOTS if fill else START_SLOTS
-				potions[kind] = mini(potions[kind], shelf_slots[kind])
-				hit = true
-		for u in UPGRADES:
-			if (upgrade_rows[u.id].row as Control).get_global_rect().has_point(p):
-				if fill:
-					owned_upgrades[u.id] = true
-				else:
-					owned_upgrades.erase(u.id)
-				hit = true
-		if (upgrade_rows["_header"].label as Control).get_global_rect().has_point(p):
+		# Spell book: shelf spells, upgrade spells, and the cauldron in the middle (all stars).
+		var id := shop_panel.node_at(p)
+		if id == "root":
 			for n in range(1, GameData.LEVELS.size() + 1):
 				if fill:
 					level_records[n] = {"best": 100, "conquered": true}
 				else:
 					level_records.erase(n)
+			hit = true
+		elif id == "wisdom_shelf" or id == "vision_shelf":
+			var kind := PotionArt.WISDOM if id == "wisdom_shelf" else PotionArt.VISION
+			shelf_slots[kind] = MAX_SLOTS if fill else START_SLOTS
+			potions[kind] = mini(potions[kind], shelf_slots[kind])
+			hit = true
+		elif id != "":
+			if fill:
+				owned_upgrades[id] = true
+			else:
+				owned_upgrades.erase(id)
 			hit = true
 	else:
 		# Level stars (the whole column: button + star).
@@ -419,6 +419,7 @@ func _start_word() -> void:
 	wisdom_order = []
 	familiar_time = 0.0
 	familiar_helped = false
+	where_paid = false
 	auto_done = {}
 	_update_potion_ui()
 
@@ -535,12 +536,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		if t:
 			_begin_drag(t, p)
 			get_viewport().set_input_as_handled()
-		elif _in_cauldron(p):
-			stirring = true
-			stir_last_angle = (p - BREW_CENTER).angle()
-			stir_total = 0.0
-			spoon.position = p
-			spoon.visible = true
+		elif _on_brew(p):
+			_start_stir(p)
+
+
+func _start_stir(p: Vector2) -> void:
+	stirring = true
+	stir_start = p
+	stir_last_x = p.x
+	spoon.position = p
+	spoon.visible = true
+
+
+## Is the point over the liquid in the pot?
+func _on_brew(p: Vector2) -> bool:
+	var d := p - BREW_CENTER
+	return pow(d.x / (BREW_RADIUS.x + 20.0), 2) + pow(d.y / (BREW_RADIUS.y + 30.0), 2) <= 1.0
 
 
 func _input(event: InputEvent) -> void:
@@ -698,15 +709,11 @@ func _insert_x(idx: int) -> float:
 	return (_target_of(row[idx - 1]).x + _target_of(row[idx]).x) * 0.5
 
 
+## Stirring = one swipe to the left across the brew.
 func _stir_motion(p: Vector2) -> void:
-	if p.distance_to(BREW_CENTER) < 30.0:
-		return  # too close to the middle, the angle jumps around
-	var a := (p - BREW_CENTER).angle()
-	var d := wrapf(a - stir_last_angle, -PI, PI)
-	stir_last_angle = a
-	stir_total += d
-	swirl_angle += d
-	if absf(stir_total) >= TAU * STIR_TURNS:
+	swirl_angle += (p.x - stir_last_x) * 0.012  # the soup swirls along with the spoon
+	stir_last_x = p.x
+	if stir_start.x - p.x >= STIR_SWIPE and _on_brew(p):
 		_stop_stirring()
 		_stir()
 
@@ -824,6 +831,19 @@ func _brew_fail() -> void:
 
 # ---------------------------------------------------------------- hints
 
+## Hidden gaps: the letters on each side of the spot slide apart for a moment.
+func _push_letters_apart(x: float) -> void:
+	for item in row:
+		var home := _target_of(item)
+		var dir := 1.0 if home.x > x else -1.0
+		_kill_tween(item)
+		var tw := item.create_tween().set_trans(Tween.TRANS_SINE)
+		tw.tween_property(item, "position", home + Vector2(dir * 26.0 * row_scale, 0), 0.3)
+		tw.tween_interval(2.0)
+		tw.tween_property(item, "position", home, 0.4)
+		item.set_meta("tween", tw)
+
+
 func _show_where_hint() -> void:
 	if busy or complete_panel.visible:
 		return
@@ -864,7 +884,19 @@ func _show_where_hint() -> void:
 			x = (_target_of(fixed[before - 1]).x + _target_of(fixed[before]).x) * 0.5
 		pos = Vector2(x, WORD_CENTER.y)
 		hint_marker.kind = Marker.HINT_BAR
+
+	# Costs 1 Wisdom + 1 Vision potion, once per word (then it cycles for free).
+	if not where_paid:
+		if potions[PotionArt.WISDOM] < WHERE_COST or potions[PotionArt.VISION] < WHERE_COST:
+			return
+		potions[PotionArt.WISDOM] -= WHERE_COST
+		potions[PotionArt.VISION] -= WHERE_COST
+		where_paid = true
+		_save_game()
+		_update_potion_ui()
 	hint_count += 1
+	if not puzzle.gaps_visible:
+		_push_letters_apart(pos.x)
 
 	hint_marker.position = pos
 	hint_marker.scale = Vector2.ONE * row_scale
@@ -1080,7 +1112,7 @@ func word_score() -> int:
 		pts -= HELP_PENALTY
 	if wisdom_level > 0:
 		pts -= HELP_PENALTY
-	if familiar_helped:
+	if familiar_helped or where_paid:
 		pts -= HELP_PENALTY
 	return maxi(0, pts)
 
@@ -1126,6 +1158,14 @@ func _update_potion_ui() -> void:
 	else:
 		vision.text = "Vision %d/%d\ncosts %d" % [vision_level, steps, cost]
 		vision.disabled = potions[PotionArt.VISION] < cost
+	if where_button:
+		if where_paid:
+			where_button.text = "Where?\n(paid)"
+			where_button.disabled = false
+		else:
+			where_button.text = "Where?\ncosts 1 + 1"
+			where_button.disabled = potions[PotionArt.WISDOM] < WHERE_COST \
+				or potions[PotionArt.VISION] < WHERE_COST
 
 
 func _engraving_text() -> String:
@@ -1394,7 +1434,7 @@ func _build_ui() -> void:
 	score_label.add_theme_color_override("font_color", BREW_GOLD)
 	root.add_child(score_label)
 
-	var tip := _label("Stir the pot: hold the\nmouse and draw circles!", 18)
+	var tip := _label("Stir the pot: swipe\nleft across the brew!", 18)
 	tip.position = Vector2(40, 300)
 	tip.modulate = Color(1, 1, 1, 0.75)
 	root.add_child(tip)
@@ -1440,9 +1480,10 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size = Vector2(PotionShelf.PER_ROW * PotionShelf.STEP + 4, 0)
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	where_row.add_child(spacer)
-	var where := _button("Where?\nfree", Vector2(160, 64))
+	var where := _button("", Vector2(160, 64))
 	where.add_theme_font_size_override("font_size", 19)
-	where.tooltip_text = "Show where a missing letter goes"
+	where.tooltip_text = "Show where a missing letter goes.\nCosts 1 Wisdom + 1 Vision potion per word (counts as help)."
+	where_button = where
 	where.pressed.connect(_show_where_hint)
 	where_row.add_child(where)
 	var shop_row := HBoxContainer.new()
@@ -1493,79 +1534,45 @@ func _slot_price(kind: String) -> int:
 	return 30 * (shelf_slots[kind] - START_SLOTS + 1)
 
 
-func _build_shop(root: Control) -> void:
-	shop_panel = PanelContainer.new()
-	shop_panel.position = Vector2(250, 40)
-	shop_panel.custom_minimum_size = Vector2(780, 0)
-	shop_panel.visible = false
-	root.add_child(shop_panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	shop_panel.add_child(box)
-	var title := _label("Potion shelves", 30)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", Color("4a2c17"))
-	box.add_child(title)
-	shop_score_label = _label("", 22)
-	shop_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	shop_score_label.add_theme_color_override("font_color", Color("8a5a1a"))
-	box.add_child(shop_score_label)
-	for kind in [PotionArt.WISDOM, PotionArt.VISION]:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 16)
-		box.add_child(row)
-		var info := _label("", 22)
-		info.custom_minimum_size = Vector2(480, 0)
-		info.add_theme_color_override("font_color", PotionArt.COLORS[kind].darkened(0.35))
-		row.add_child(info)
-		var buy := _button("", Vector2(250, 50))
-		buy.add_theme_font_size_override("font_size", 19)
-		buy.pressed.connect(_buy_slot.bind(kind))
-		row.add_child(buy)
-		shop_rows[kind] = {"label": info, "button": buy, "row": row}
+## The spell book (upgrade menu) and the skill tree it shows.
+const SKILL_TREE := [
+	{"id": "root", "parent": "", "pos": Vector2(0, 0), "icon": "🍲"},
+	{"id": "wisdom_shelf", "parent": "root", "pos": Vector2(-260, 120), "icon": "📘"},
+	{"id": "vision_shelf", "parent": "root", "pos": Vector2(260, 120), "icon": "🔮"},
+	{"id": "familiar", "parent": "root", "pos": Vector2(0, 250), "icon": "🦉"},
+	{"id": "discount", "parent": "wisdom_shelf", "pos": Vector2(-470, 300), "icon": "💰"},
+	{"id": "lucky", "parent": "vision_shelf", "pos": Vector2(470, 300), "icon": "🍀"},
+]
 
-	# Star upgrades: unlocked by total level stars, bought with score points.
-	var header := _label("", 24)
-	header.name = "StarHeader"
-	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_color_override("font_color", Color("4a2c17"))
-	box.add_child(header)
-	upgrade_rows["_header"] = {"label": header}
-	for u in UPGRADES:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 16)
-		box.add_child(row)
-		var info := _label("", 18)
-		info.custom_minimum_size = Vector2(480, 0)
-		info.add_theme_color_override("font_color", Color("4a2c17"))
-		row.add_child(info)
-		var buy := _button("", Vector2(250, 56))
-		buy.add_theme_font_size_override("font_size", 18)
-		buy.pressed.connect(_on_upgrade_button.bind(u.id))
-		row.add_child(buy)
-		upgrade_rows[u.id] = {"label": info, "button": buy, "row": row}
-	var close := _button("Close", Vector2(160, 50))
-	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	close.pressed.connect(func() -> void: shop_panel.visible = false)
-	box.add_child(close)
+
+func _build_shop(root: Control) -> void:
+	shop_panel = SpellBook.new()
+	shop_panel.game = self
+	shop_panel.emoji_font = emoji_font
+	root.add_child(shop_panel)
 
 
 func _open_shop() -> void:
 	if complete_panel.visible:
 		return
-	_update_shop()
-	shop_panel.visible = true
+	shop_panel.open_book()
 
 
-func _buy_slot(kind: String) -> void:
+func _update_shop() -> void:
+	if shop_panel:
+		shop_panel.refresh()
+
+
+func _buy_slot(kind: String) -> bool:
 	var price := _slot_price(kind)
 	if shelf_slots[kind] >= MAX_SLOTS or score < price:
-		return
+		return false
 	score -= price
 	shelf_slots[kind] += 1
 	_save_game()
 	_update_potion_ui()
 	_update_shop()
+	return true
 
 
 ## Sum of your best star on every level (max 100 per level, 1000 in total).
@@ -1583,55 +1590,86 @@ func _upgrade_info(id: String) -> Dictionary:
 	return {}
 
 
-func _on_upgrade_button(id: String) -> void:
-	var u := _upgrade_info(id)
-	if owned_upgrades.has(id):
-		if id == "familiar":
-			familiar_on = not familiar_on  # switch the owl on/off
-			familiar_time = 0.0
-	elif total_stars() >= int(u.stars) and score >= int(u.price):
-		score -= int(u.price)
-		owned_upgrades[id] = true
+func book_stats_text() -> String:
+	return "Score: %d points      Stars from levels: %d / %d" % [score, total_stars(), GameData.LEVELS.size() * 100]
+
+
+## Everything the spell book needs to draw and explain one spell.
+func skill_info(id: String) -> Dictionary:
+	var info := {"title": "", "desc": "", "status_text": "", "hint": "",
+		"understood": false, "can_buy": false, "toggle": false}
+	if id == "root":
+		info.title = "Your cauldron"
+		info.desc = "The heart of every spell. Earn stars on the levels to unlock spells, and score to learn them."
+		info.understood = true
+		info.status_text = "%d stars" % total_stars()
+		info.hint = "Score: %d points" % score
+	elif id == "wisdom_shelf" or id == "vision_shelf":
+		var kind := PotionArt.WISDOM if id == "wisdom_shelf" else PotionArt.VISION
+		var label := "Wisdom" if kind == PotionArt.WISDOM else "Vision"
+		var price := _slot_price(kind)
+		var maxed: bool = shelf_slots[kind] >= MAX_SLOTS
+		info.title = "%s shelf" % label
+		info.desc = "Makes room for one more %s potion on its shelf." % label
+		info.understood = shelf_slots[kind] > START_SLOTS
+		info.can_buy = not maxed and score >= price
+		info.status_text = "%d / %d slots" % [shelf_slots[kind], MAX_SLOTS]
+		if maxed:
+			info.hint = "Full size!"
+		elif info.can_buy:
+			info.hint = "Hold to learn: %d points" % price
+		else:
+			info.hint = "Needs %d points (you have %d)" % [price, score]
 	else:
-		return
+		var u := _upgrade_info(id)
+		var owned := owned_upgrades.has(id)
+		var unlocked := total_stars() >= int(u.stars)
+		info.title = u.name
+		info.desc = String(u.desc).replace("\n", " ")
+		info.understood = owned
+		info.can_buy = not owned and unlocked and score >= int(u.price)
+		info.toggle = owned and id == "familiar"
+		if owned:
+			if info.toggle:
+				info.status_text = "owl ON" if familiar_on else "owl OFF"
+				info.hint = "Learned. Click to switch the owl %s." % ("off" if familiar_on else "on")
+			else:
+				info.status_text = "learned"
+				info.hint = "Learned."
+		elif not unlocked:
+			info.status_text = "needs %d stars" % u.stars
+			info.hint = "Locked: needs %d stars (you have %d)" % [u.stars, total_stars()]
+		else:
+			info.status_text = "%d points" % u.price
+			info.hint = ("Hold to learn: %d points" % u.price) if info.can_buy \
+				else ("Needs %d points (you have %d)" % [u.price, score])
+	return info
+
+
+## Learn a spell (called when the mouse has been held on it long enough).
+func skill_buy(id: String) -> bool:
+	if id == "wisdom_shelf":
+		return _buy_slot(PotionArt.WISDOM)
+	if id == "vision_shelf":
+		return _buy_slot(PotionArt.VISION)
+	var u := _upgrade_info(id)
+	if u.is_empty() or owned_upgrades.has(id) or total_stars() < int(u.stars) or score < int(u.price):
+		return false
+	score -= int(u.price)
+	owned_upgrades[id] = true
 	_save_game()
 	_update_potion_ui()
 	_update_shop()
+	return true
 
 
-func _update_shop() -> void:
-	shop_score_label.text = "You have %d points to spend" % score
-	var stars := total_stars()
-	(upgrade_rows["_header"].label as Label).text = \
-		"Star upgrades  -  your stars: %d / %d" % [stars, GameData.LEVELS.size() * 100]
-	for u in UPGRADES:
-		var r: Dictionary = upgrade_rows[u.id]
-		(r.label as Label).text = "%s  (needs %d stars)\n%s" % [u.name, u.stars, u.desc]
-		var b: Button = r.button
-		if owned_upgrades.has(u.id):
-			if u.id == "familiar":
-				b.text = "Owl: ON" if familiar_on else "Owl: OFF"
-				b.disabled = false
-			else:
-				b.text = "Owned"
-				b.disabled = true
-		elif stars < int(u.stars):
-			b.text = "Locked (%d more stars)" % (int(u.stars) - stars)
-			b.disabled = true
-		else:
-			b.text = "Buy: %d points" % u.price
-			b.disabled = score < int(u.price)
-	for kind in shop_rows:
-		var row: Dictionary = shop_rows[kind]
-		var shelf_name := "Wisdom" if kind == PotionArt.WISDOM else "Vision"
-		(row.label as Label).text = "%s shelf: %d / %d slots" % [shelf_name, shelf_slots[kind], MAX_SLOTS]
-		var buy: Button = row.button
-		if shelf_slots[kind] >= MAX_SLOTS:
-			buy.text = "Full size!"
-			buy.disabled = true
-		else:
-			buy.text = "+1 slot: %d points" % _slot_price(kind)
-			buy.disabled = score < _slot_price(kind)
+## A click on a learned spell that can be switched (the owl).
+func skill_click(id: String) -> void:
+	if id == "familiar" and owned_upgrades.has(id):
+		familiar_on = not familiar_on
+		familiar_time = 0.0
+		_save_game()
+		_update_shop()
 
 
 func _label(text: String, font_size: int) -> Label:

@@ -5,7 +5,7 @@
 - **Players:** kids on easy levels, adults on hard levels.
 - **Core loop:** a word with missing letters floats in the cauldron. Drag letters from the table into it, then stir.
   Correct → the brew turns gold and sparkles, next word. Wrong → smoke and fizzle, wrong letters hop back. No penalty.
-- **Stirring:** only with the mouse: hold and draw circles on the cauldron (a wooden spoon follows).
+- **Stirring:** swipe left across the brew with the mouse (a wooden spoon follows).
   No stir button. Letters swirl, then always settle back into their correct order.
 - **Cauldron:** seen from above. Letters float over it in gently bobbing gas bubbles.
   Golden letters engraved on the front say how many letters to find ("FIND 2 LETTERS"),
@@ -17,13 +17,13 @@
   - Easier levels reveal more per potion: full meaning / clearest picture takes 2 potions on
     levels 1-3, 3 on levels 4-6, 4 on levels 7-10.
   - **Level stars (out of 100):** each word is worth 10 points; drinking any Vision potion on it
-    removes 5, any Wisdom potion removes 5 (both = 0). *Where?* is free and doesn't count.
+    removes 5, any Wisdom potion removes 5 (both = 0). *Where?* or the owl also count as help (-5).
     The best run is saved as a number in a star under the level button; 100 = solid gold star,
     level *conquered*.
   - **Shelves:** each shelf starts with 3 slots (empty slots shown faintly). Potions earned beyond
     a full shelf become 10 score points. The *Shelves* menu spends score on extra slots
     (30, 60, 90, ... points), up to 10 per shelf.
-  - **Star upgrades** (in the Shelves menu): unlocked by total stars across all levels (max 1000),
+  - **Star upgrades** (in the Shelves spell book): unlocked by total stars across all levels (max 1000),
     then bought with score points.
     | Stars | Upgrade | Effect | Price |
     |---|---|---|---|
@@ -34,11 +34,12 @@
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
   - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.
   - The potion stock and score are saved between play sessions (`user://save.cfg`).
-  - *Where?* (shows a gap position) stays free.
+  - *Where?* costs 1 Wisdom + 1 Vision potion once per word (then free for that word); on hidden-gap
+    levels it also pushes the letters apart where a letter belongs.
 - **Gaps:** visible empty slots on levels 1–4, hidden on levels 5–10 (you work out where letters go).
 - **Letters:** used up when placed. Duplicates appear when the word needs them (two E's for "tree").
   Decoys are never letters that could spell a *different* real word.
-- **Hints (unlimited):** *Where?* shows only the position. *Meaning?* shows what the word means.
+- **Hints:** Wisdom and Vision potions, and *Where?* (see Potions).
 - **Session:** 10 words = one difficulty level complete.
 - **Look:** cozy and simple, a witch's hut. Sound and music come later.
 
@@ -65,3 +66,6 @@
 - [ ] 6. Cozy look: real art for the hut, cauldron, letters; nicer brew effects
 - [ ] 7. Export: Windows .exe, then web and phone
 - [ ] Later: sound and music, a bigger word list, a larger dictionary for decoy checks
+- **Shelves = spell book:** a leather book with a skill tree of spell medallions you can drag around.
+  Hover a spell to read it (in a strange tongue until learned; cost and requirements stay plain),
+  hold the mouse on it to learn it: a gold ring fills and the words decipher.
