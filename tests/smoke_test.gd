@@ -135,7 +135,7 @@ func _check_gameplay() -> void:
 		print("bought a Wisdom slot for ", price, " points")
 
 	# Owl familiar: solves whole words on easy (visible gaps) and hard (hidden gaps) levels.
-	main.owned_upgrades["familiar"] = true
+	main.owned_upgrades["familiar"] = 1
 	main.familiar_on = true
 	for lvl in [1, 4, 6, 10]:
 		for attempt in 3:
@@ -161,8 +161,8 @@ func _check_gameplay() -> void:
 	await process_frame
 	var full_cost: int = main._potion_cost()
 	var reward: int = main._potion_reward()
-	main.owned_upgrades["discount"] = true
-	main.owned_upgrades["lucky"] = true
+	main.owned_upgrades["discount"] = 1
+	main.owned_upgrades["lucky"] = 1
 	if main._potion_cost() != full_cost - 1 or main._potion_reward() != reward + 1:
 		_fail("discount/lucky: cost %d->%d, reward %d->%d" % [full_cost, main._potion_cost(), reward, main._potion_reward()])
 	main._start_level(1)
@@ -197,11 +197,11 @@ func _check_gameplay() -> void:
 	var book: SpellBook = main.shop_panel
 	main._cheat_click(book.node_global_pos("familiar"), true)
 	main._cheat_click(book.node_global_pos("root"), true)
-	if not main.owned_upgrades.has("familiar") or main.total_stars() != 1000:
-		_fail("ctrl+click in spell book: owl %s, stars %d" % [main.owned_upgrades.has("familiar"), main.total_stars()])
+	if not (main.rank_of("familiar") > 0) or main.total_stars() != 1000:
+		_fail("ctrl+click in spell book: owl %s, stars %d" % [(main.rank_of("familiar") > 0), main.total_stars()])
 	main._cheat_click(book.node_global_pos("root"), false)
 	main._cheat_click(book.node_global_pos("familiar"), false)
-	if main.owned_upgrades.has("familiar") or main.total_stars() != 0:
+	if (main.rank_of("familiar") > 0) or main.total_stars() != 0:
 		_fail("alt+click in spell book did not reset")
 
 	# Spell book: hovering shows gibberish until learned; buying works through skill_buy.
@@ -212,7 +212,7 @@ func _check_gameplay() -> void:
 		3: {"best": 100, "conquered": true}, 4: {"best": 100, "conquered": true}, 5: {"best": 100, "conquered": true},
 		6: {"best": 100, "conquered": true}, 7: {"best": 100, "conquered": true}, 8: {"best": 100, "conquered": true}}
 	main.score = 1000
-	if not main.skill_buy("lucky") or not main.owned_upgrades.has("lucky") or main.score != 750:
+	if not main.skill_buy("lucky") or main.rank_of("lucky") != 1 or main.score != 750:
 		_fail("learning Lucky cauldron in the spell book failed")
 	if not main.skill_buy("vision_shelf") or main.shelf_slots[PotionArt.VISION] != main.START_SLOTS + 1:
 		_fail("learning a Vision shelf slot in the spell book failed")
@@ -254,6 +254,46 @@ func _check_gameplay() -> void:
 	if not main.complete_panel.visible or main.level_records.get(main.level, {}).get("best", 0) != 100:
 		_fail("ctrl+click on word counter did not finish the level with 100")
 	print("ctrl/alt shortcuts ok")
+
+	# Ranked spells: prices grow, owl speed needs the owl, ranks stop at max.
+	main.owned_upgrades = {}
+	main.level_records = {}
+	for n in range(1, 11):
+		main.level_records[n] = {"best": 100, "conquered": true}
+	main.score = 100000
+	if main.skill_buy("owl_speed"):
+		_fail("Swift wings could be learned before the owl")
+	main.skill_buy("familiar")
+	var prices: Array = []
+	for i in 12:
+		prices.append(main._upgrade_price("owl_speed"))
+		main.skill_buy("owl_speed")
+	if main.rank_of("owl_speed") != 10 or absf(main.familiar_interval() - 5.0) > 0.01:
+		_fail("Swift wings: rank %d, interval %.1f" % [main.rank_of("owl_speed"), main.familiar_interval()])
+	if prices[1] <= prices[0] or prices[9] <= prices[5]:
+		_fail("Swift wings prices should keep growing: %s" % [prices])
+	print("swift wings prices: ", prices.slice(0, 10), " -> owl every ", main.familiar_interval(), " s")
+	# Whispering sage / Clear sight shorten the reveal steps (never below 1).
+	main._start_level(9)
+	await process_frame
+	var base_steps: int = main._wisdom_steps()
+	main.skill_buy("sage")
+	main.skill_buy("sight")
+	if main._wisdom_steps() != base_steps - 1 or main._vision_steps() != base_steps - 1:
+		_fail("sage/sight did not remove a step")
+	main.skill_buy("sage")
+	main.skill_buy("sage")
+	if main.rank_of("sage") != 2:
+		_fail("sage went past its max rank")
+	# Clicking the owl pauses it, clicking again wakes it.
+	main.familiar_on = true
+	main._toggle_owl()
+	if main._has_familiar():
+		_fail("owl did not go to sleep")
+	main._toggle_owl()
+	if not main._has_familiar():
+		_fail("owl did not wake up")
+	print("ranked spells, sage/sight, owl pause ok")
 
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)

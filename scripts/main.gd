@@ -80,6 +80,7 @@ var persist := true        ## false in tests, so they never touch the player's s
 var incoming := {}         ## kind -> reward potions still flying to their shelf
 var shelves := {}          ## kind -> PotionShelf
 var potion_buttons := {}   ## kind -> Button
+var cost_icons := {}       ## kind or "where" -> CostIcons on that button
 var emoji_font: SystemFont
 var engrave_font: FontVariation
 var spoon: Spoon
@@ -96,17 +97,26 @@ var shop_panel: SpellBook     ## the Shelves menu: a spell book with a skill tre
 
 ## Star upgrades: unlocked by your total level stars (sum of best stars, max 1000),
 ## then bought with score points in the Shelves menu.
+## Every spell has ranks; each rank costs more: price = base * growth^rank (rounded to 10).
+## "needs" = another spell that must be learned first.
 const UPGRADES := [
-	{"id": "discount", "name": "Potion discount", "stars": 200, "price": 100,
-		"desc": "Every drink costs 1 potion less (never below 1)."},
-	{"id": "familiar", "name": "Owl familiar", "stars": 500, "price": 150,
-		"desc": "Places one right letter every 10 seconds.\nCounts as help: -5 on that word."},
-	{"id": "lucky", "name": "Lucky cauldron", "stars": 800, "price": 250,
-		"desc": "Every brewed word gives 1 extra potion."},
+	{"id": "discount", "name": "Potion discount", "stars": 200, "base": 100, "growth": 2.5, "max": 2,
+		"desc": "Every drink costs 1 potion less per rank (never below 1)."},
+	{"id": "sage", "name": "Whispering sage", "stars": 300, "base": 120, "growth": 2.2, "max": 2,
+		"desc": "Each rank: the full meaning takes one Wisdom potion fewer."},
+	{"id": "sight", "name": "Clear sight", "stars": 300, "base": 120, "growth": 2.2, "max": 2,
+		"desc": "Each rank: the clearest picture takes one Vision potion fewer."},
+	{"id": "familiar", "name": "Owl familiar", "stars": 500, "base": 150, "growth": 1.0, "max": 1,
+		"desc": "An owl places one right letter every 10 seconds. Click the owl to pause it. Counts as help: -5 on that word."},
+	{"id": "owl_speed", "name": "Swift wings", "stars": 500, "base": 60, "growth": 1.35, "max": 10,
+		"needs": "familiar", "desc": "The owl helps 0.5 seconds sooner per rank."},
+	{"id": "lucky", "name": "Lucky cauldron", "stars": 800, "base": 250, "growth": 1.9, "max": 3,
+		"desc": "Every brewed word gives 1 extra potion per rank."},
 ]
-const FAMILIAR_INTERVAL := 10.0
+const FAMILIAR_BASE_INTERVAL := 10.0
+const FAMILIAR_SPEEDUP := 0.5
 const FAMILIAR_POS := Vector2(232, 470)
-var owned_upgrades := {}      ## upgrade id -> true
+var owned_upgrades := {}      ## upgrade id -> rank (0 = not learned)
 var familiar_on := true       ## the owl can be switched off for a perfect run
 var familiar_time := 0.0
 var familiar_helped := false  ## the owl placed a letter in this word
@@ -158,7 +168,7 @@ func _process(delta: float) -> void:
 		spoon.position = get_global_mouse_position()
 	if _familiar_working():
 		familiar_time += delta
-		if familiar_time >= FAMILIAR_INTERVAL:
+		if familiar_time >= familiar_interval():
 			familiar_time = 0.0
 			_familiar_place()
 
@@ -186,7 +196,7 @@ func _cheat_click(p: Vector2, fill: bool) -> bool:
 			hit = true
 		elif id != "":
 			if fill:
-				owned_upgrades[id] = true
+				owned_upgrades[id] = int(_upgrade_info(id).max)  # top rank
 			else:
 				owned_upgrades.erase(id)
 			hit = true
@@ -232,7 +242,16 @@ func _cheat_click(p: Vector2, fill: bool) -> bool:
 # ---------------------------------------------------------------- owl familiar
 
 func _has_familiar() -> bool:
-	return owned_upgrades.has("familiar") and familiar_on
+	return rank_of("familiar") > 0 and familiar_on
+
+
+## Seconds between owl letters: 10, minus 0.5 per Swift wings rank.
+func familiar_interval() -> float:
+	return FAMILIAR_BASE_INTERVAL - FAMILIAR_SPEEDUP * rank_of("owl_speed")
+
+
+func rank_of(id: String) -> int:
+	return int(owned_upgrades.get(id, 0))
 
 
 func _familiar_working() -> bool:
@@ -527,9 +546,17 @@ func _word_filled() -> bool:
 # ---------------------------------------------------------------- input: drag & stir
 
 func _unhandled_input(event: InputEvent) -> void:
-	if busy or complete_panel.visible or shop_panel.visible:
+	if complete_panel.visible or shop_panel.visible:
 		return
 	var mb := event as InputEventMouseButton
+	# Clicking the owl puts it to sleep (pause) or wakes it up.
+	if mb and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and rank_of("familiar") > 0 \
+			and get_global_mouse_position().distance_to(FAMILIAR_POS) <= 40.0:
+		_toggle_owl()
+		get_viewport().set_input_as_handled()
+		return
+	if busy:
+		return
 	if mb and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
 		var p := get_global_mouse_position()
 		var t := _tile_at(p)
@@ -915,15 +942,13 @@ func _show_where_hint() -> void:
 
 ## Potions it costs to drink one, by difficulty: 1,1,1,2,2,2,3,3,3,4.
 func _potion_cost() -> int:
-	var cost := 1 + (level - 1) / 3
-	if owned_upgrades.has("discount"):
-		cost -= 1
+	var cost := 1 + (level - 1) / 3 - rank_of("discount")
 	return maxi(1, cost)
 
 
-## Potions earned for brewing a word: bigger words give more (1-4), +1 with Lucky cauldron.
+## Potions earned for brewing a word: bigger words give more (1-4), +1 per Lucky cauldron rank.
 func _potion_reward() -> int:
-	return _reward_for(puzzle.word) + (1 if owned_upgrades.has("lucky") else 0)
+	return _reward_for(puzzle.word) + rank_of("lucky")
 
 
 func _reward_for(word: String) -> int:
@@ -946,15 +971,25 @@ func _reveal_steps() -> int:
 	return 4
 
 
+## Wisdom potions for the full meaning (Whispering sage takes one off per rank, min 1).
+func _wisdom_steps() -> int:
+	return maxi(1, _reveal_steps() - rank_of("sage"))
+
+
+## Vision potions for the clearest picture (Clear sight takes one off per rank, min 1).
+func _vision_steps() -> int:
+	return maxi(1, _reveal_steps() - rank_of("sight"))
+
+
 ## Picture clarity after each Vision potion; the last step is always the clearest (0.85).
 func _vision_clarity(step: int) -> float:
-	return 0.85 * pow(float(step) / _reveal_steps(), 0.8)
+	return 0.85 * pow(minf(1.0, float(step) / _vision_steps()), 0.8)
 
 
 func _drink_wisdom() -> void:
 	if complete_panel.visible:
 		return
-	if wisdom_level >= _reveal_steps():
+	if wisdom_level >= _wisdom_steps():
 		thought.toggle()  # already know it all: reopen for free
 		return
 	if not _pay(PotionArt.WISDOM):
@@ -976,7 +1011,7 @@ func _meaning_snippet() -> String:
 		long.shuffle()
 		short.shuffle()
 		wisdom_order = long + short
-	var count := ceili(words.size() * float(wisdom_level) / _reveal_steps())
+	var count := mini(words.size(), ceili(words.size() * float(wisdom_level) / _wisdom_steps()))
 	var shown := {}
 	for i in count:
 		shown[wisdom_order[i]] = true
@@ -990,7 +1025,7 @@ func _meaning_snippet() -> String:
 
 
 func _drink_vision() -> void:
-	if complete_panel.visible or vision_level >= _reveal_steps():
+	if complete_panel.visible or vision_level >= _vision_steps():
 		return
 	if not _pay(PotionArt.VISION):
 		return
@@ -1025,8 +1060,10 @@ func _load_game() -> void:
 	for kind in shelf_slots.keys():
 		shelf_slots[kind] = clampi(int(cfg.get_value("shelves", kind, START_SLOTS)), START_SLOTS, MAX_SLOTS)
 	for u in UPGRADES:
-		if bool(cfg.get_value("upgrades", u.id, false)):
-			owned_upgrades[u.id] = true
+		# Ranks are numbers; older saves stored true for "learned" (= rank 1).
+		var r := int(cfg.get_value("upgrades", u.id, 0))
+		if r > 0:
+			owned_upgrades[u.id] = mini(r, int(u.max))
 	familiar_on = bool(cfg.get_value("upgrades", "familiar_on", true))
 	# Level stars use the out-of-100 scoring ("stars" section; older "levels" data is ignored).
 	for n in range(1, GameData.LEVELS.size() + 1):
@@ -1053,7 +1090,7 @@ func _save_game() -> void:
 	for kind in shelf_slots:
 		cfg.set_value("shelves", kind, shelf_slots[kind])
 	for id in owned_upgrades:
-		cfg.set_value("upgrades", id, true)
+		cfg.set_value("upgrades", id, int(owned_upgrades[id]))
 	cfg.set_value("upgrades", "familiar_on", familiar_on)
 	for n in level_records:
 		cfg.set_value("stars", "best_%d" % n, level_records[n].best)
@@ -1143,29 +1180,58 @@ func _update_potion_ui() -> void:
 		shelf.capacity = shelf_slots[kind]
 		shelf.count = potions[kind] - incoming.get(kind, 0)
 	score_label.text = "Score: %d" % (score - score_incoming)
-	var steps := _reveal_steps()
+	# Button costs are shown as little potion icons in the button's second line.
+	var blue: Color = PotionArt.COLORS[PotionArt.WISDOM]
+	var pink: Color = PotionArt.COLORS[PotionArt.VISION]
+	var none: Array[Color] = []
+	var w_steps := _wisdom_steps()
 	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
-	if wisdom_level >= steps:
+	if wisdom_level >= w_steps:
 		wisdom.text = "Wisdom\n(all known)"
 		wisdom.disabled = false  # free to reopen the thought
+		cost_icons[PotionArt.WISDOM].set_costs(none)
 	else:
-		wisdom.text = "Wisdom %d/%d\ncosts %d" % [wisdom_level, steps, cost]
+		wisdom.text = "Wisdom %d/%d\n " % [wisdom_level, w_steps]
 		wisdom.disabled = potions[PotionArt.WISDOM] < cost
+		cost_icons[PotionArt.WISDOM].set_costs(_repeat_color(blue, cost))
+	var v_steps := _vision_steps()
 	var vision: Button = potion_buttons[PotionArt.VISION]
-	if vision_level >= steps:
+	if vision_level >= v_steps:
 		vision.text = "Vision\n(clearest)"
 		vision.disabled = true
+		cost_icons[PotionArt.VISION].set_costs(none)
 	else:
-		vision.text = "Vision %d/%d\ncosts %d" % [vision_level, steps, cost]
+		vision.text = "Vision %d/%d\n " % [vision_level, v_steps]
 		vision.disabled = potions[PotionArt.VISION] < cost
+		cost_icons[PotionArt.VISION].set_costs(_repeat_color(pink, cost))
 	if where_button:
 		if where_paid:
 			where_button.text = "Where?\n(paid)"
 			where_button.disabled = false
+			cost_icons["where"].set_costs(none)
 		else:
-			where_button.text = "Where?\ncosts 1 + 1"
+			where_button.text = "Where?\n "
 			where_button.disabled = potions[PotionArt.WISDOM] < WHERE_COST \
 				or potions[PotionArt.VISION] < WHERE_COST
+			cost_icons["where"].set_costs(_repeat_color(blue, WHERE_COST) + _repeat_color(pink, WHERE_COST))
+	for key in cost_icons:
+		cost_icons[key].queue_redraw()
+
+
+func _repeat_color(c: Color, n: int) -> Array[Color]:
+	var out: Array[Color] = []
+	for i in n:
+		out.append(c)
+	return out
+
+
+## Adds a cost-icon strip to the lower half of a button.
+func _add_cost_icons(b: Button, key: String) -> void:
+	var icons := CostIcons.new()
+	icons.position = Vector2(0, b.custom_minimum_size.y * 0.5)
+	icons.size = Vector2(b.custom_minimum_size.x, b.custom_minimum_size.y * 0.5)
+	b.add_child(icons)
+	cost_icons[key] = icons
 
 
 func _engraving_text() -> String:
@@ -1259,17 +1325,29 @@ func _draw_picture(time: float) -> void:
 
 ## The owl familiar beside the cauldron, with a ring that fills up until it helps.
 func _draw_familiar(time: float) -> void:
-	if not _has_familiar():
+	if rank_of("familiar") == 0:
 		return
-	var c := FAMILIAR_POS + Vector2(0, sin(time * 1.5) * 3.0)
+	var asleep := not familiar_on
+	var c := FAMILIAR_POS + Vector2(0, 0.0 if asleep else sin(time * 1.5) * 3.0)
 	draw_circle(c, 36.0, Color(0, 0, 0, 0.25))
 	draw_arc(c, 36.0, 0.0, TAU, 40, Color(1, 0.85, 0.4, 0.2), 4.0, true)
-	var frac := familiar_time / FAMILIAR_INTERVAL
-	if frac > 0.0:
+	var frac := familiar_time / familiar_interval()
+	if frac > 0.0 and not asleep:
 		draw_arc(c, 36.0, -PI / 2, -PI / 2 + TAU * frac, 40, BREW_GOLD, 4.0, true)
 	var fs := 40
 	var baseline := (emoji_font.get_ascent(fs) - emoji_font.get_descent(fs)) * 0.5
-	draw_string(emoji_font, c + Vector2(-40, baseline), "🦉", HORIZONTAL_ALIGNMENT_CENTER, 80, fs)
+	draw_string(emoji_font, c + Vector2(-40, baseline), "🦉", HORIZONTAL_ALIGNMENT_CENTER, 80, fs,
+		Color(1, 1, 1, 0.4) if asleep else Color.WHITE)
+	var font := ThemeDB.fallback_font
+	if asleep:
+		# Sleeping: drifting Zz and a hint that a click wakes it.
+		var drift := fmod(time, 2.0) / 2.0
+		draw_string(font, c + Vector2(20, -24 - drift * 14), "z", HORIZONTAL_ALIGNMENT_LEFT, -1, 16,
+			Color(1, 1, 1, 1.0 - drift))
+		draw_string(font, c + Vector2(30, -38 - drift * 14), "Z", HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+			Color(1, 1, 1, 1.0 - drift))
+	draw_string(font, c + Vector2(-60, 56), "click to wake" if asleep else "click to pause",
+		HORIZONTAL_ALIGNMENT_CENTER, 120, 13, Color(1, 0.95, 0.85, 0.55))
 
 
 func _draw_engraving() -> void:
@@ -1472,6 +1550,7 @@ func _build_ui() -> void:
 		b.pressed.connect(info[2])
 		hbox.add_child(b)
 		potion_buttons[kind] = b
+		_add_cost_icons(b, kind)
 	var where_row := HBoxContainer.new()
 	where_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	where_row.add_theme_constant_override("separation", 8)
@@ -1484,6 +1563,7 @@ func _build_ui() -> void:
 	where.add_theme_font_size_override("font_size", 19)
 	where.tooltip_text = "Show where a missing letter goes.\nCosts 1 Wisdom + 1 Vision potion per word (counts as help)."
 	where_button = where
+	_add_cost_icons(where, "where")
 	where.pressed.connect(_show_where_hint)
 	where_row.add_child(where)
 	var shop_row := HBoxContainer.new()
@@ -1537,11 +1617,14 @@ func _slot_price(kind: String) -> int:
 ## The spell book (upgrade menu) and the skill tree it shows.
 const SKILL_TREE := [
 	{"id": "root", "parent": "", "pos": Vector2(0, 0), "icon": "🍲"},
-	{"id": "wisdom_shelf", "parent": "root", "pos": Vector2(-260, 120), "icon": "📘"},
-	{"id": "vision_shelf", "parent": "root", "pos": Vector2(260, 120), "icon": "🔮"},
-	{"id": "familiar", "parent": "root", "pos": Vector2(0, 250), "icon": "🦉"},
-	{"id": "discount", "parent": "wisdom_shelf", "pos": Vector2(-470, 300), "icon": "💰"},
-	{"id": "lucky", "parent": "vision_shelf", "pos": Vector2(470, 300), "icon": "🍀"},
+	{"id": "wisdom_shelf", "parent": "root", "pos": Vector2(-270, 110), "icon": "📘"},
+	{"id": "vision_shelf", "parent": "root", "pos": Vector2(270, 110), "icon": "🔮"},
+	{"id": "sage", "parent": "wisdom_shelf", "pos": Vector2(-540, 230), "icon": "📜"},
+	{"id": "discount", "parent": "wisdom_shelf", "pos": Vector2(-290, 320), "icon": "💰"},
+	{"id": "sight", "parent": "vision_shelf", "pos": Vector2(540, 230), "icon": "👁"},
+	{"id": "lucky", "parent": "vision_shelf", "pos": Vector2(290, 320), "icon": "🍀"},
+	{"id": "familiar", "parent": "root", "pos": Vector2(0, 180), "icon": "🦉"},
+	{"id": "owl_speed", "parent": "familiar", "pos": Vector2(0, 330), "icon": "💨"},
 ]
 
 
@@ -1622,54 +1705,86 @@ func skill_info(id: String) -> Dictionary:
 			info.hint = "Needs %d points (you have %d)" % [price, score]
 	else:
 		var u := _upgrade_info(id)
-		var owned := owned_upgrades.has(id)
-		var unlocked := total_stars() >= int(u.stars)
+		var rank := rank_of(id)
+		var max_rank := int(u.max)
+		var price := _upgrade_price(id)
+		var lock := _upgrade_lock_reason(id)
 		info.title = u.name
 		info.desc = String(u.desc).replace("\n", " ")
-		info.understood = owned
-		info.can_buy = not owned and unlocked and score >= int(u.price)
-		info.toggle = owned and id == "familiar"
-		if owned:
-			if info.toggle:
-				info.status_text = "owl ON" if familiar_on else "owl OFF"
-				info.hint = "Learned. Click to switch the owl %s." % ("off" if familiar_on else "on")
-			else:
-				info.status_text = "learned"
-				info.hint = "Learned."
-		elif not unlocked:
-			info.status_text = "needs %d stars" % u.stars
-			info.hint = "Locked: needs %d stars (you have %d)" % [u.stars, total_stars()]
+		info.understood = rank > 0
+		info.can_buy = rank < max_rank and lock == "" and score >= price
+		info.toggle = id == "familiar" and rank > 0
+		if id == "owl_speed" and rank > 0:
+			info.status_text = "%.1f s  (%d/%d)" % [familiar_interval(), rank, max_rank]
+		elif max_rank > 1:
+			info.status_text = "rank %d/%d" % [rank, max_rank]
 		else:
-			info.status_text = "%d points" % u.price
-			info.hint = ("Hold to learn: %d points" % u.price) if info.can_buy \
-				else ("Needs %d points (you have %d)" % [u.price, score])
+			info.status_text = "learned" if rank > 0 else ""
+		if info.toggle:
+			info.status_text = "owl awake" if familiar_on else "owl asleep"
+			info.hint = "Learned. Click to %s the owl." % ("pause" if familiar_on else "wake")
+		elif rank >= max_rank:
+			info.hint = "Fully learned!"
+		elif lock != "":
+			if rank == 0:
+				info.status_text = ("needs %d stars" % u.stars) if total_stars() < int(u.stars) else "locked"
+			info.hint = "Locked: " + lock
+		else:
+			var what := "Hold to learn" if rank == 0 else "Hold to learn rank %d" % (rank + 1)
+			info.hint = ("%s: %d points" % [what, price]) if info.can_buy \
+				else ("Next rank: %d points (you have %d)" % [price, score])
+			if rank == 0:
+				info.status_text = "%d points" % price
 	return info
 
 
-## Learn a spell (called when the mouse has been held on it long enough).
+## Score points for the next rank of a spell: base * growth^rank, rounded to 10.
+func _upgrade_price(id: String) -> int:
+	var u := _upgrade_info(id)
+	return int(round(float(u.base) * pow(float(u.growth), rank_of(id)) / 10.0)) * 10
+
+
+## Why a spell can't be learned yet ("" if it can).
+func _upgrade_lock_reason(id: String) -> String:
+	var u := _upgrade_info(id)
+	if total_stars() < int(u.stars):
+		return "needs %d stars (you have %d)" % [u.stars, total_stars()]
+	if u.has("needs") and rank_of(u.needs) == 0:
+		return "learn %s first" % _upgrade_info(u.needs).name
+	return ""
+
+
+## Learn a spell, or its next rank (called when the mouse has been held on it long enough).
 func skill_buy(id: String) -> bool:
 	if id == "wisdom_shelf":
 		return _buy_slot(PotionArt.WISDOM)
 	if id == "vision_shelf":
 		return _buy_slot(PotionArt.VISION)
 	var u := _upgrade_info(id)
-	if u.is_empty() or owned_upgrades.has(id) or total_stars() < int(u.stars) or score < int(u.price):
+	if u.is_empty() or rank_of(id) >= int(u.max) or _upgrade_lock_reason(id) != "":
 		return false
-	score -= int(u.price)
-	owned_upgrades[id] = true
+	var price := _upgrade_price(id)
+	if score < price:
+		return false
+	score -= price
+	owned_upgrades[id] = rank_of(id) + 1
 	_save_game()
 	_update_potion_ui()
 	_update_shop()
 	return true
 
 
-## A click on a learned spell that can be switched (the owl).
+## A click on a learned spell that can be switched (the owl: awake / asleep).
 func skill_click(id: String) -> void:
-	if id == "familiar" and owned_upgrades.has(id):
-		familiar_on = not familiar_on
-		familiar_time = 0.0
-		_save_game()
-		_update_shop()
+	if id == "familiar" and rank_of(id) > 0:
+		_toggle_owl()
+
+
+func _toggle_owl() -> void:
+	familiar_on = not familiar_on
+	familiar_time = 0.0
+	_save_game()
+	_update_shop()
 
 
 func _label(text: String, font_size: int) -> Label:

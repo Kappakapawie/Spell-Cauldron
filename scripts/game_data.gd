@@ -12,15 +12,15 @@ const WORDS_PER_LEVEL := 10
 ## gaps_visible: true = empty slots show where letters go, false = you must work it out
 const LEVELS: Array[Dictionary] = [
 	{"min_len": 3, "max_len": 4, "missing_min": 1, "missing_max": 1, "decoys": 2, "gaps_visible": true},
-	{"min_len": 3, "max_len": 4, "missing_min": 1, "missing_max": 1, "decoys": 3, "gaps_visible": true},
-	{"min_len": 4, "max_len": 5, "missing_min": 1, "missing_max": 2, "decoys": 4, "gaps_visible": true},
-	{"min_len": 4, "max_len": 5, "missing_min": 2, "missing_max": 2, "decoys": 4, "gaps_visible": true},
-	{"min_len": 5, "max_len": 7, "missing_min": 2, "missing_max": 2, "decoys": 5, "gaps_visible": false},
-	{"min_len": 6, "max_len": 7, "missing_min": 2, "missing_max": 2, "decoys": 5, "gaps_visible": false},
-	{"min_len": 6, "max_len": 9, "missing_min": 2, "missing_max": 3, "decoys": 6, "gaps_visible": false},
-	{"min_len": 7, "max_len": 9, "missing_min": 3, "missing_max": 3, "decoys": 6, "gaps_visible": false},
-	{"min_len": 8, "max_len": 11, "missing_min": 3, "missing_max": 4, "decoys": 8, "gaps_visible": false},
-	{"min_len": 9, "max_len": 14, "missing_min": 4, "missing_max": 4, "decoys": 8, "gaps_visible": false},
+	{"min_len": 3, "max_len": 4, "missing_min": 1, "missing_max": 1, "decoys": 2, "gaps_visible": true},
+	{"min_len": 4, "max_len": 5, "missing_min": 1, "missing_max": 2, "decoys": 3, "gaps_visible": true},
+	{"min_len": 4, "max_len": 5, "missing_min": 2, "missing_max": 2, "decoys": 3, "gaps_visible": true},
+	{"min_len": 5, "max_len": 7, "missing_min": 2, "missing_max": 2, "decoys": 3, "gaps_visible": false},
+	{"min_len": 6, "max_len": 7, "missing_min": 2, "missing_max": 2, "decoys": 4, "gaps_visible": false},
+	{"min_len": 6, "max_len": 9, "missing_min": 2, "missing_max": 3, "decoys": 4, "gaps_visible": false},
+	{"min_len": 7, "max_len": 9, "missing_min": 3, "missing_max": 3, "decoys": 5, "gaps_visible": false},
+	{"min_len": 8, "max_len": 11, "missing_min": 3, "missing_max": 4, "decoys": 5, "gaps_visible": false},
+	{"min_len": 9, "max_len": 14, "missing_min": 4, "missing_max": 4, "decoys": 6, "gaps_visible": false},
 ]
 
 ## [word, meaning]. Levels pick words by length, so just add words here.

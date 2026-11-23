@@ -24,13 +24,19 @@
     a full shelf become 10 score points. The *Shelves* menu spends score on extra slots
     (30, 60, 90, ... points), up to 10 per shelf.
   - **Star upgrades** (in the Shelves spell book): unlocked by total stars across all levels (max 1000),
-    then bought with score points.
-    | Stars | Upgrade | Effect | Price |
-    |---|---|---|---|
-    | 200 | Potion discount | Every drink costs 1 potion less (min 1) | 100 |
-    | 500 | Owl familiar | Places one right letter every 10 s (can be switched off; counts as help, -5 on that word) | 150 |
-    | 800 | Lucky cauldron | Every brewed word gives 1 extra potion | 250 |
-  - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
+    then bought with score points. Every spell has ranks; each rank costs more.
+    | Stars | Spell | Per rank | Ranks | First price, growth |
+    |---|---|---|---|---|
+    | – | Wisdom / Vision shelf | +1 slot | 7 (3→10) | 30, +30 each |
+    | 200 | Potion discount | drinks cost 1 less (min 1) | 2 | 100, ×2.5 |
+    | 300 | Whispering sage | full meaning takes 1 Wisdom potion fewer (min 1) | 2 | 120, ×2.2 |
+    | 300 | Clear sight | clearest picture takes 1 Vision potion fewer (min 1) | 2 | 120, ×2.2 |
+    | 500 | Owl familiar | places a right letter every 10 s; click the owl to pause; counts as help (-5) | 1 | 150 |
+    | 500 | Swift wings (needs owl) | owl helps 0.5 s sooner | 10 (10 s→5 s) | 60, ×1.35 |
+    | 800 | Lucky cauldron | +1 potion per brewed word | 3 | 250, ×1.9 |
+  - Potion costs on the buttons are shown as small potion icons (blue = Wisdom, pink = Vision).
+- **Decoy letters per level** (slow growth): 2, 2, 3, 3, 3, 4, 4, 5, 5, 6.
+  - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer.
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
   - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.
   - The potion stock and score are saved between play sessions (`user://save.cfg`).
@@ -47,15 +53,15 @@
 | Level | Word length | Missing | Decoys | Gaps |
 |---|---|---|---|---|
 | 1 | 3–4 | 1 | 2 | shown |
-| 2 | 3–4 | 1 | 3 | shown |
-| 3 | 4–5 | 1–2 | 4 | shown |
-| 4 | 4–5 | 2 | 4 | shown |
-| 5 | 5–7 | 2 | 5 | hidden |
-| 6 | 6–7 | 2 | 5 | hidden |
-| 7 | 6–9 | 2–3 | 6 | hidden |
-| 8 | 7–9 | 3 | 6 | hidden |
-| 9 | 8–11 | 3–4 | 8 | hidden |
-| 10 | 9–14 | 4 | 8 | hidden |
+| 2 | 3–4 | 1 | 2 | shown |
+| 3 | 4–5 | 1–2 | 3 | shown |
+| 4 | 4–5 | 2 | 3 | shown |
+| 5 | 5–7 | 2 | 3 | hidden |
+| 6 | 6–7 | 2 | 4 | hidden |
+| 7 | 6–9 | 2–3 | 4 | hidden |
+| 8 | 7–9 | 3 | 5 | hidden |
+| 9 | 8–11 | 3–4 | 5 | hidden |
+| 10 | 9–14 | 4 | 6 | hidden |
 
 ## Roadmap
 - [x] 1. Setup: Godot project, git, GitHub

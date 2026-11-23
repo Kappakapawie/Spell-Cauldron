@@ -46,7 +46,7 @@ func _init() -> void:
 
 	canvas = Control.new()
 	canvas.position = BOOK.position + Vector2(30, 104)
-	canvas.size = BOOK.size - Vector2(60, 170)
+	canvas.size = BOOK.size - Vector2(60, 196)  # stops above the hint line at the foot of the page
 	canvas.clip_contents = true
 	canvas.mouse_filter = Control.MOUSE_FILTER_STOP
 	canvas.draw.connect(_draw_tree)
@@ -89,7 +89,7 @@ func refresh() -> void:
 # ---------------------------------------------------------------- positions
 
 func _origin() -> Vector2:
-	return Vector2(canvas.size.x * 0.5, 64) + offset
+	return Vector2(canvas.size.x * 0.5, 54) + offset
 
 
 func node_center(id: String) -> Vector2:
