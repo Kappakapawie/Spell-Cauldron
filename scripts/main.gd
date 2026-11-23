@@ -8,13 +8,17 @@ const BREW_GREEN := Color("63c56f")
 const BREW_GOLD := Color("ffd45c")
 const BREW_MURKY := Color("6b4f7a")
 
-const WORD_CENTER := Vector2(640, 250)
-const WORD_MAX_WIDTH := 860.0
-const WORD_STEP := LetterTile.SIZE + 10.0
-const TABLE_Y := 645.0
+const WORD_CENTER := Vector2(640, 300)
+const WORD_MAX_WIDTH := 900.0
+const WORD_STEP := LetterTile.BUBBLE_RADIUS * 2.0 + 8.0
+const TABLE_Y := 655.0
 const TABLE_STEP := 86.0
 const DROP_RADIUS := 64.0
-const BREW_CENTER := Vector2(640, 336)
+const BREW_CENTER := Vector2(640, 380)   ## middle of the soup, seen from above
+const BREW_RADIUS := Vector2(290, 115)
+const PICTURE_CENTER := Vector2(640, 425)
+const PICTURE_DELAY := 10.0              ## seconds before the vague picture appears
+const ENGRAVING_Y := 560.0
 const STIR_TURNS := 0.9  ## how many full circles you need to draw to stir
 
 var level := 1
@@ -56,7 +60,12 @@ var bubbles: CPUParticles2D
 var sparkles: CPUParticles2D
 var smoke: CPUParticles2D
 
-var message_label: Label
+var picture_alpha := 0.0  ## 0 = invisible, ~0.4 = vague, 1 = fully revealed
+var picture_tween: Tween
+var emoji_font: SystemFont
+var engrave_font: FontVariation
+var spoon: Spoon
+
 var progress_label: Label
 var meaning_panel: PanelContainer
 var meaning_label: Label
@@ -82,8 +91,23 @@ func _ready() -> void:
 	add_child(hint_marker)
 	sparkles = _make_sparkles(dot)
 	smoke = _make_smoke(dot)
+	spoon = Spoon.new()
+	spoon.visible = false
+	add_child(spoon)
+	emoji_font = SystemFont.new()
+	emoji_font.font_names = PackedStringArray(["Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"])
+	engrave_font = FontVariation.new()
+	engrave_font.base_font = ThemeDB.fallback_font
+	engrave_font.variation_embolden = 0.9
+	engrave_font.spacing_glyph = 4
 	_build_ui()
 	_start_level(1)
+
+
+func _process(_delta: float) -> void:
+	queue_redraw()  # keeps the brew, picture and engraving alive
+	if stirring:
+		spoon.position = get_global_mouse_position()
 
 
 # ---------------------------------------------------------------- levels & words
@@ -118,7 +142,7 @@ func _start_word() -> void:
 	round_id += 1
 	busy = false
 	dragged = null
-	stirring = false
+	_stop_stirring()
 	if swirl_tween:
 		swirl_tween.kill()
 	for c in pieces.get_children():
@@ -170,11 +194,14 @@ func _start_word() -> void:
 		_tween_node(t, t.home_position, 1.0, t.home_rotation, 0.3)
 
 	progress_label.text = "Word %d / %d" % [word_number + 1, GameData.WORDS_PER_LEVEL]
-	var plural := "letter" if missing.size() == 1 else "letters"
-	if gaps_visible:
-		_say("Drag the missing %s into the word, then stir!" % plural)
-	else:
-		_say("%d %s missing... but where? Drop them into the word, then stir!" % [missing.size(), plural])
+
+	# After a while, a vague picture of the word rises in the brew.
+	if picture_tween:
+		picture_tween.kill()
+	picture_alpha = 0.0
+	picture_tween = create_tween()
+	picture_tween.tween_interval(PICTURE_DELAY)
+	picture_tween.tween_property(self, "picture_alpha", 0.3, 3.0)
 
 
 func _next_word() -> void:
@@ -278,6 +305,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			stirring = true
 			stir_last_angle = (p - BREW_CENTER).angle()
 			stir_total = 0.0
+			spoon.position = p
+			spoon.visible = true
 
 
 func _input(event: InputEvent) -> void:
@@ -294,7 +323,13 @@ func _input(event: InputEvent) -> void:
 		if mb and mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 			if dragged:
 				_drop()
-			stirring = false
+			_stop_stirring()
+
+
+func _stop_stirring() -> void:
+	stirring = false
+	if spoon:
+		spoon.visible = false
 
 
 func _tile_at(p: Vector2) -> LetterTile:
@@ -305,8 +340,8 @@ func _tile_at(p: Vector2) -> LetterTile:
 
 
 func _in_cauldron(p: Vector2) -> bool:
-	var d := p - Vector2(640, 380)
-	return pow(d.x / 270.0, 2) + pow(d.y / 190.0, 2) <= 1.0
+	var d := p - BREW_CENTER
+	return pow(d.x / 330.0, 2) + pow(d.y / 165.0, 2) <= 1.0
 
 
 func _begin_drag(t: LetterTile, p: Vector2) -> void:
@@ -429,7 +464,7 @@ func _stir_motion(p: Vector2) -> void:
 	stir_total += d
 	swirl_angle += d
 	if absf(stir_total) >= TAU * STIR_TURNS:
-		stirring = false
+		_stop_stirring()
 		_stir()
 
 
@@ -445,8 +480,7 @@ func _stir() -> void:
 	if id != round_id:
 		return
 	if not _word_filled():
-		_say("Place the missing letters first, then stir again.")
-		busy = false
+		busy = false  # just a swirl; the engraving still says how many letters are missing
 		return
 	if _spelling() == puzzle.word:
 		await _brew_success()
@@ -482,7 +516,7 @@ func _swirl_step(t: float, homes: Array[Vector2], start_angle: float) -> void:
 	var w := sin(t * PI)  # 0 at start and end, so letters always settle back in place
 	for i in n:
 		var a := TAU * i / n + t * TAU * 1.5
-		var orbit := BREW_CENTER + Vector2(cos(a) * 180.0, sin(a) * 40.0 - 50.0)
+		var orbit := BREW_CENTER + Vector2(cos(a) * 220.0, sin(a) * 75.0 - 20.0)
 		var pos := homes[i].lerp(orbit, w)
 		row[i].position = pos
 		var slot := row[i] as GapSlot
@@ -492,11 +526,15 @@ func _swirl_step(t: float, homes: Array[Vector2], start_angle: float) -> void:
 
 
 func _brew_success() -> void:
-	_say("Well brewed!  %s" % puzzle.word)
 	sparkles.position = WORD_CENTER
 	_burst(sparkles)
 	var tw := create_tween()
 	tw.tween_property(self, "brew_color", BREW_GOLD, 0.3)
+	# The picture in the brew becomes sharp and clear.
+	if picture_tween:
+		picture_tween.kill()
+	picture_tween = create_tween()
+	picture_tween.tween_property(self, "picture_alpha", 1.0, 0.5)
 	for i in row.size():
 		var node: Node2D = row[i]
 		var slot := node as GapSlot
@@ -511,7 +549,6 @@ func _brew_success() -> void:
 
 
 func _brew_fail() -> void:
-	_say("The brew fizzled... try again!")
 	_burst(smoke)
 	var tw := create_tween()
 	tw.tween_property(self, "brew_color", BREW_MURKY, 0.25)
@@ -556,8 +593,7 @@ func _show_where_hint() -> void:
 			if slot and not (slot.tile and slot.tile.letter == word[slot.index]):
 				open.append(slot)
 		if open.is_empty():
-			_say("All the letters look right. Stir the cauldron!")
-			return
+			return  # all correct; the engraving already says "STIR THE POT!"
 		var target := open[hint_count % open.size()]
 		pos = _target_of(target)
 		hint_marker.kind = Marker.HINT_BOX
@@ -604,17 +640,23 @@ func _toggle_meaning() -> void:
 	meaning_panel.visible = not meaning_panel.visible
 
 
-func _say(text: String) -> void:
-	message_label.text = text
+func _engraving_text() -> String:
+	if puzzle.is_empty():
+		return ""
+	if _word_filled():
+		return "STIR THE POT!"
+	var n: int = puzzle.missing.size()
+	return "FIND %d LETTER%s" % [n, "" if n == 1 else "S"]
 
 
 # ---------------------------------------------------------------- drawing the hut
 
 func _draw() -> void:
+	var time := Time.get_ticks_msec() / 1000.0
 	# Wall
-	draw_rect(Rect2(0, 0, 1280, 560), Color("4b3226"))
+	draw_rect(Rect2(0, 0, 1280, 600), Color("4b3226"))
 	for x in range(0, 1281, 80):
-		draw_line(Vector2(x, 0), Vector2(x, 560), Color("3e291f"), 3.0)
+		draw_line(Vector2(x, 0), Vector2(x, 600), Color("3e291f"), 3.0)
 	# Window with a moon
 	var win := Rect2(70, 90, 190, 160)
 	draw_rect(win.grow(10), Color("2c1c14"))
@@ -632,25 +674,74 @@ func _draw() -> void:
 	draw_circle(Vector2(1160, 128), 22, Color("9b7fc4"))
 	draw_rect(Rect2(1195, 110, 36, 40), Color("d9b45a"))
 	# Fire glow under the cauldron
-	_ellipse(Vector2(640, 560), 340, 95, Color(1.0, 0.55, 0.2, 0.22))
-	# Cauldron body, rim and brew
-	_ellipse(Vector2(640, 450), 260, 175, Color("26262e"))
-	_ellipse(Vector2(555, 420), 110, 70, Color(1, 1, 1, 0.05))
-	_ellipse(BREW_CENTER + Vector2(0, -4), 240, 58, Color("3b3b47"))
-	_ellipse(BREW_CENTER, 212, 42, brew_color)
+	_ellipse(Vector2(640, 600), 380, 100, Color(1.0, 0.55, 0.2, 0.22))
+	# Cauldron body (front) with a soft shine
+	_ellipse(Vector2(640, 470), 335, 175, Color("26262e"))
+	_ellipse(Vector2(520, 540), 120, 40, Color(1, 1, 1, 0.04))
+	# Rim seen from above: a thick dark ring around a wide pool of soup
+	_ellipse(BREW_CENTER, BREW_RADIUS.x + 32, BREW_RADIUS.y + 22, Color("3b3b47"))
+	_ellipse(BREW_CENTER + Vector2(0, -6), BREW_RADIUS.x + 18, BREW_RADIUS.y + 10, Color("4a4a58"))
+	_ellipse(BREW_CENTER, BREW_RADIUS.x, BREW_RADIUS.y, brew_color.darkened(0.35))  # inner wall shadow
+	_ellipse(BREW_CENTER + Vector2(0, 8), BREW_RADIUS.x - 8, BREW_RADIUS.y - 10, brew_color)
+	# Swirls in the soup (they spin with your stirring)
+	var spin := swirl_angle + time * 0.25
 	for k in 3:
-		var a0 := swirl_angle + k * TAU / 3.0
+		var a0 := spin + k * TAU / 3.0
 		var pts := PackedVector2Array()
-		for j in 12:
-			var a := a0 + j * 0.14
-			var r := 60.0 + j * 9.0
-			pts.append(BREW_CENTER + Vector2(cos(a) * r, sin(a) * r * 0.2))
-		draw_polyline(pts, brew_color.lightened(0.3), 3.0, true)
+		for j in 14:
+			var a := a0 + j * 0.13
+			var r := 50.0 + j * 15.0
+			pts.append(BREW_CENTER + Vector2(0, 8) + Vector2(cos(a) * r, sin(a) * r * 0.36))
+		draw_polyline(pts, brew_color.lightened(0.28), 3.0, true)
+	_draw_picture(time)
+	# Golden engraving on the front of the cauldron
+	_draw_engraving()
 	# Table
-	draw_rect(Rect2(0, 560, 1280, 160), Color("8a5a32"))
-	draw_rect(Rect2(0, 560, 1280, 8), Color("a8743f"))
-	draw_line(Vector2(0, 610), Vector2(1280, 610), Color("744a28"), 2.0)
-	draw_line(Vector2(0, 668), Vector2(1280, 668), Color("744a28"), 2.0)
+	draw_rect(Rect2(0, 595, 1280, 125), Color("8a5a32"))
+	draw_rect(Rect2(0, 595, 1280, 8), Color("a8743f"))
+	draw_line(Vector2(0, 640), Vector2(1280, 640), Color("744a28"), 2.0)
+	draw_line(Vector2(0, 690), Vector2(1280, 690), Color("744a28"), 2.0)
+
+
+## The vague picture of the word, wobbling and blurry in the brew.
+func _draw_picture(time: float) -> void:
+	var pic: String = puzzle.get("picture", "")
+	if pic == "" or picture_alpha <= 0.01:
+		return
+	var fs := 110
+	var baseline := (emoji_font.get_ascent(fs) - emoji_font.get_descent(fs)) * 0.5
+	var wobble := 1.0 - picture_alpha  # less wobble and blur as it becomes clear
+	draw_set_transform(PICTURE_CENTER, sin(time * 0.9) * 0.08 * wobble,
+		Vector2(1.0 + sin(time * 1.4) * 0.05 * wobble, 0.8 + sin(time * 1.1) * 0.05 * wobble))
+	var clear := clampf((picture_alpha - 0.3) / 0.7, 0.0, 1.0)  # 0 while vague, 1 when revealed
+	var tint := brew_color.lightened(0.5).lerp(Color.WHITE, clear)
+	var blur := 12.0 * (1.0 - clear)
+	# Several shifted, faint copies blur the picture while it is still a mystery.
+	for i in 8:
+		var a := TAU * i / 8.0
+		var c := tint
+		c.a = picture_alpha * 0.35 * (1.0 - clear)
+		draw_string(emoji_font, Vector2(-150, baseline) + Vector2(cos(a), sin(a)) * blur, pic, HORIZONTAL_ALIGNMENT_CENTER, 300, fs, c)
+	var main_c := tint
+	main_c.a = picture_alpha * (0.35 + 0.65 * clear)
+	draw_string(emoji_font, Vector2(-150, baseline), pic, HORIZONTAL_ALIGNMENT_CENTER, 300, fs, main_c)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _draw_engraving() -> void:
+	var text := _engraving_text()
+	if text == "":
+		return
+	var fs := 36
+	var w := 600.0
+	var pos := Vector2(640.0 - w * 0.5, ENGRAVING_Y + 12.0)
+	var gold := Color("e8b84a")
+	if text.begins_with("STIR"):
+		gold = gold.lerp(Color("fff0b0"), 0.5 + 0.5 * sin(Time.get_ticks_msec() / 250.0))
+	# Dark edge above and light edge below make it look carved into the metal.
+	draw_string(engrave_font, pos + Vector2(0, -2), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(0, 0, 0, 0.7))
+	draw_string(engrave_font, pos + Vector2(0, 2), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(1, 0.9, 0.6, 0.35))
+	draw_string(engrave_font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, gold)
 
 
 func _ellipse(center: Vector2, rx: float, ry: float, color: Color) -> void:
@@ -687,12 +778,12 @@ func _make_bubbles(tex: Texture2D) -> CPUParticles2D:
 	p.lifetime = 1.4
 	p.position = BREW_CENTER
 	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	p.emission_rect_extents = Vector2(170, 12)
+	p.emission_rect_extents = Vector2(220, 70)
 	p.direction = Vector2(0, -1)
 	p.spread = 15.0
-	p.gravity = Vector2(0, -30)
-	p.initial_velocity_min = 10.0
-	p.initial_velocity_max = 40.0
+	p.gravity = Vector2(0, -10)
+	p.initial_velocity_min = 5.0
+	p.initial_velocity_max = 20.0
 	p.scale_amount_min = 0.25
 	p.scale_amount_max = 0.6
 	p.color = BREW_GREEN.lightened(0.35)
@@ -783,16 +874,8 @@ func _build_ui() -> void:
 	progress_label.position = Vector2(1090, 18)
 	root.add_child(progress_label)
 
-	message_label = _label("", 24)
-	message_label.position = Vector2(140, 168)
-	message_label.size = Vector2(1000, 40)
-	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	message_label.add_theme_constant_override("outline_size", 8)
-	message_label.add_theme_color_override("font_outline_color", Color("2c1c14"))
-	root.add_child(message_label)
-
-	var tip := _label("Tip: draw a circle on the\ncauldron to stir it!", 18)
-	tip.position = Vector2(60, 300)
+	var tip := _label("Stir the pot: hold the\nmouse and draw circles!", 18)
+	tip.position = Vector2(40, 300)
 	tip.modulate = Color(1, 1, 1, 0.75)
 	root.add_child(tip)
 
@@ -811,14 +894,10 @@ func _build_ui() -> void:
 
 	# Action buttons
 	var side := VBoxContainer.new()
-	side.position = Vector2(1070, 250)
+	side.position = Vector2(1070, 280)
 	side.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	side.add_theme_constant_override("separation", 12)
 	root.add_child(side)
-	var stir := _button("Stir!", Vector2(180, 70))
-	stir.add_theme_font_size_override("font_size", 30)
-	stir.pressed.connect(_stir)
-	side.add_child(stir)
 	var where := _button("Where?", Vector2(180, 54))
 	where.tooltip_text = "Show where a missing letter goes"
 	where.pressed.connect(_show_where_hint)
@@ -910,15 +989,25 @@ class Marker extends Node2D:
 	var color := Color.WHITE
 
 	func _draw() -> void:
-		var h := LetterTile.SIZE * 0.5 + 8.0
+		var h := LetterTile.BUBBLE_RADIUS + 6.0
 		if kind == INSERT:
 			draw_line(Vector2(0, -h), Vector2(0, h), color, 6.0)
 			return
 		if kind == HINT_BOX:
-			draw_rect(Rect2(-h, -h, h * 2.0, h * 2.0), color, false, 5.0)
+			draw_arc(Vector2.ZERO, h, 0.0, TAU, 40, color, 5.0, true)
 		else:
 			draw_line(Vector2(0, -h), Vector2(0, h), color, 8.0)
 		var tip := -h - 8.0
 		draw_colored_polygon(PackedVector2Array([
 			Vector2(-16, tip - 24), Vector2(16, tip - 24), Vector2(0, tip)
 		]), color)
+
+
+## A wooden spoon that follows the mouse while you stir.
+class Spoon extends Node2D:
+	func _draw() -> void:
+		var handle_end := Vector2(70, -170)
+		draw_line(Vector2(0, -10), handle_end, Color("5a3a1e"), 14.0, true)
+		draw_line(Vector2(0, -10), handle_end, Color("a8743f"), 9.0, true)
+		draw_circle(Vector2.ZERO, 20.0, Color("5a3a1e"))
+		draw_circle(Vector2(-2, -2), 16.0, Color("a8743f"))

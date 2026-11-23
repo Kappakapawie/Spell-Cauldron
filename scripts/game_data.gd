@@ -121,6 +121,28 @@ const WORDS: Array = [
 	["questionnaire", "A list of questions for people to answer."],
 ]
 
+## The vague picture that rises in the brew after a while.
+## Placeholder: Windows emoji for now. Later these can point to real drawings.
+const PICTURES := {
+	"cat": "🐱", "dog": "🐶", "sun": "🌞", "hat": "🎩", "cup": "☕", "bed": "🛏", "pig": "🐷",
+	"egg": "🥚", "owl": "🦉", "bat": "🦇", "fox": "🦊", "map": "🗺", "jar": "🏺",
+	"moon": "🌙", "frog": "🐸", "star": "⭐", "book": "📖", "cake": "🎂", "fish": "🐟",
+	"tree": "🌳", "milk": "🥛", "rain": "🌧", "duck": "🦆", "lamp": "💡", "wand": "✨",
+	"broom": "🧹", "witch": "🧙", "magic": "🔮", "apple": "🍎", "bread": "🍞", "chair": "💺",
+	"house": "🏠", "cloud": "☁", "snake": "🐍", "smile": "😊", "spoon": "🥄", "plant": "🌱",
+	"ghost": "👻", "candle": "🕯", "potion": "🧪", "garden": "🌷", "spider": "🕷", "rabbit": "🐰",
+	"dragon": "🐉", "window": "🖼", "pencil": "✏", "rhythm": "🥁", "pumpkin": "🎃",
+	"kitchen": "🍳", "blanket": "🛌", "lantern": "🏮", "feather": "🕊", "library": "📚",
+	"giraffe": "🦒", "cauldron": "🍲", "mushroom": "🍄", "elephant": "🐘", "umbrella": "☂",
+	"treasure": "💎", "sandwich": "🥪", "dinosaur": "🦕", "calendar": "📅", "separate": "✂",
+	"february": "❄", "butterfly": "🦋", "chocolate": "🍫", "adventure": "🧭", "beautiful": "🌸",
+	"necessary": "❗", "embarrass": "😳", "wednesday": "📆", "knowledge": "🧠", "lightning": "⚡",
+	"privilege": "👑", "committee": "👥", "conscience": "😇", "definitely": "👍",
+	"restaurant": "🍽", "government": "🏛", "silhouette": "👤", "millennium": "⏳",
+	"apparently": "🤷", "mischievous": "😈", "accommodate": "🏨", "environment": "🌍",
+	"occasionally": "🔁", "pronunciation": "🗣", "questionnaire": "📋",
+}
+
 ## Extra common words. They are never asked, but the puzzle maker checks them
 ## so decoy letters never accidentally spell a *different* real word.
 const CHECK_WORDS := """

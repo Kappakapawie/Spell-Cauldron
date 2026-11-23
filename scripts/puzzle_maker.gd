@@ -48,6 +48,7 @@ static func make(entry: Array, settings: Dictionary) -> Dictionary:
 	return {
 		"word": word,
 		"meaning": entry[1],
+		"picture": GameData.PICTURES.get(String(entry[0]).to_lower(), ""),
 		"missing": missing,
 		"tiles": tiles,
 		"gaps_visible": gaps_visible,

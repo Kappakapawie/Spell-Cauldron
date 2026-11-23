@@ -5,8 +5,13 @@
 - **Players:** kids on easy levels, adults on hard levels.
 - **Core loop:** a word with missing letters floats in the cauldron. Drag letters from the table into it, then stir.
   Correct → the brew turns gold and sparkles, next word. Wrong → smoke and fizzle, wrong letters hop back. No penalty.
-- **Stirring:** draw a circle on the cauldron (works with touch later), or press *Stir!*.
-  Letters swirl, then always settle back into their correct order.
+- **Stirring:** only with the mouse: hold and draw circles on the cauldron (a wooden spoon follows).
+  No stir button. Letters swirl, then always settle back into their correct order.
+- **Cauldron:** seen from above. Letters float over it in gently bobbing gas bubbles.
+  Golden letters engraved on the front say how many letters to find ("FIND 2 LETTERS"),
+  then "STIR THE POT!" once every gap is filled. No other text instructions.
+- **Picture clue:** after 10 seconds a vague, blurry picture of the word rises in the brew,
+  and turns sharp when the word is brewed correctly. (Placeholder: Windows emoji; replace with art later.)
 - **Gaps:** visible empty slots on levels 1–4, hidden on levels 5–10 (you work out where letters go).
 - **Letters:** used up when placed. Duplicates appear when the word needs them (two E's for "tree").
   Decoys are never letters that could spell a *different* real word.

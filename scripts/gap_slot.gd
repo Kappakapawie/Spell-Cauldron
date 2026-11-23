@@ -1,23 +1,21 @@
 class_name GapSlot
 extends Node2D
 
-## A visible empty spot in the word (easy levels). Holds one LetterTile.
+## A visible empty spot in the word (easy levels): an empty, dashed bubble.
+## Holds one LetterTile once the player drops a letter on it.
 
 var index := -1             ## position of the missing letter in the word
 var tile: LetterTile = null
-var glow := false:
-	set(value):
-		glow = value
-		queue_redraw()
+var glow := false
+
+var _phase := randf() * TAU
+
+
+func _process(_delta: float) -> void:
+	queue_redraw()
 
 
 func _draw() -> void:
-	var half := LetterTile.SIZE * 0.5
-	var rect := Rect2(-half, -half, LetterTile.SIZE, LetterTile.SIZE)
-	draw_rect(rect, Color(1, 0.95, 0.8, 0.35 if glow else 0.12), true)
-	var c := Color(1, 0.95, 0.8, 1.0 if glow else 0.75)
-	var pts: Array[Vector2] = [
-		Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half), Vector2(-half, -half)
-	]
-	for i in 4:
-		draw_dashed_line(pts[i], pts[i + 1], c, 3.0, 9.0)
+	if tile:
+		return  # the placed letter draws its own bubble
+	LetterTile.draw_bubble(self, LetterTile.bob_offset(_phase), LetterTile.BUBBLE_RADIUS, true, glow)
