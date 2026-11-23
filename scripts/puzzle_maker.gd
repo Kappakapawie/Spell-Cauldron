@@ -48,7 +48,7 @@ static func make(entry: Array, settings: Dictionary) -> Dictionary:
 	return {
 		"word": word,
 		"meaning": entry[1],
-		"picture": GameData.PICTURES.get(String(entry[0]).to_lower(), ""),
+		"picture": entry[2] if entry.size() > 2 else "",
 		"missing": missing,
 		"tiles": tiles,
 		"gaps_visible": gaps_visible,
@@ -123,7 +123,7 @@ static func _is_submultiset(need: Array, pool: Array) -> bool:
 static func dictionary() -> Array[String]:
 	if _dictionary.is_empty():
 		var seen := {}
-		for e in GameData.WORDS:
+		for e in GameData.all_words():
 			seen[String(e[0]).to_upper()] = true
 		var raw := GameData.CHECK_WORDS.replace("\n", " ").replace("\t", " ")
 		for w in raw.split(" ", false):

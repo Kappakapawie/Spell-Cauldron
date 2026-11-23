@@ -18,17 +18,17 @@ func _fail(msg: String) -> void:
 
 
 func _check_puzzles() -> void:
+	var everything: Array = GameData.all_words()
+	if GameData.THEMES.size() < 10:
+		_fail("need at least 10 themes, have %d" % GameData.THEMES.size())
+	for t in GameData.THEMES:
+		if GameData.THEMES[t].size() < 20:
+			_fail("theme %s has only %d words" % [t, GameData.THEMES[t].size()])
+	print("%d themes, %d words" % [GameData.THEMES.size(), everything.size()])
 	for lvl in GameData.LEVELS.size():
 		var settings: Dictionary = GameData.LEVELS[lvl]
-		var count := 0
-		for e in GameData.WORDS:
-			var l := String(e[0]).length()
-			if l >= settings.min_len and l <= settings.max_len:
-				count += 1
-		if count < GameData.WORDS_PER_LEVEL:
-			_fail("level %d only has %d words" % [lvl + 1, count])
 		for i in 40:
-			var entry: Array = GameData.WORDS[randi() % GameData.WORDS.size()]
+			var entry: Array = everything[randi() % everything.size()]
 			var p := PuzzleMaker.make(entry, settings)
 			var word: String = p.word
 			var tiles: Array = p.tiles.duplicate()
@@ -41,11 +41,40 @@ func _check_puzzles() -> void:
 	print("puzzle check done")
 
 
+## Every theme on every level gives 10 different words, all from that theme,
+## and the easiest level picks shorter words than the hardest.
+func _check_themes(main: Node) -> void:
+	for t in GameData.THEMES:
+		main.theme = t
+		var names := {}
+		for e in GameData.THEMES[t]:
+			names[e[0]] = true
+		var avg_len := []
+		for lvl in GameData.LEVELS.size():
+			var words: Array = main._pick_words(GameData.LEVELS[lvl])
+			var seen := {}
+			var total := 0
+			for e in words:
+				if not names.has(e[0]):
+					_fail("theme %s level %d picked a word from another theme: %s" % [t, lvl + 1, e[0]])
+				seen[e[0]] = true
+				total += String(e[0]).length()
+			if seen.size() != GameData.WORDS_PER_LEVEL:
+				_fail("theme %s level %d repeats words" % [t, lvl + 1])
+			avg_len.append(total / float(words.size()))
+		if avg_len[0] >= avg_len[9]:
+			_fail("theme %s: level 1 words are not shorter than level 10 words" % t)
+	print("themes: 10 different on-theme words per level, getting longer with difficulty")
+
+
 func _check_gameplay() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	main.persist = false  # never touch the player's real save
 	root.add_child(main)
 	await process_frame
+	var session_theme: String = main.theme
+	_check_themes(main)
+	main.theme = session_theme
 	for lvl in [1, 4, 5, 10]:
 		main._start_level(lvl)
 		await process_frame
@@ -76,11 +105,17 @@ func _check_gameplay() -> void:
 			_fail("level %d: potions went over the cap (%d -> %d)" % [lvl, before, after])
 		if main.score != score_before + reward * main.POINTS_PER_POTION:
 			_fail("level %d: expected +%d points, got +%d" % [lvl, reward * main.POINTS_PER_POTION, main.score - score_before])
-		# Below the cap, rewards go to the shelves instead.
+		# With empty shelves, rewards go to the shelves; only a full shelf overflows into points.
 		main.potions = {PotionArt.WISDOM: 0, PotionArt.VISION: 0}
+		var score_mid: int = main.score
 		main._award_potions()
-		if main.potions[PotionArt.WISDOM] + main.potions[PotionArt.VISION] != main._potion_reward():
-			_fail("level %d: rewards below the cap did not reach the shelves" % lvl)
+		var on_shelves: int = main.potions[PotionArt.WISDOM] + main.potions[PotionArt.VISION]
+		var overflow: int = (main.score - score_mid) / main.POINTS_PER_POTION
+		if on_shelves + overflow != main._potion_reward() \
+				or (overflow > 0 and on_shelves != main.shelf_slots[PotionArt.WISDOM] \
+					and main.potions[PotionArt.WISDOM] != main.shelf_slots[PotionArt.WISDOM] \
+					and main.potions[PotionArt.VISION] != main.shelf_slots[PotionArt.VISION]):
+			_fail("level %d: rewards with empty shelves: %d on shelves, %d overflowed" % [lvl, on_shelves, overflow])
 		if main.word_number != 1:
 			_fail("level %d: correct answer did not advance (word %s)" % [lvl, word])
 		else:

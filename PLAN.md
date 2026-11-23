@@ -75,3 +75,13 @@
 - **Shelves = spell book:** a leather book with a skill tree of spell medallions you can drag around.
   Hover a spell to read it (in a strange tongue until learned; cost and requirements stay plain),
   hold the mouse on it to learn it: a gold ring fills and the words decipher.
+
+## Word themes
+- 10 themes, ~26 words each (260 words): Animals, Food & kitchen, Witchcraft & magic,
+  Nature & weather, At home, Ocean & sea, Space & sky, Body & feelings, School & words,
+  Time & calendar. Every word is in exactly one theme (`scripts/game_data.gd`).
+- When the game starts it picks a random theme and uses only its words on every level
+  until the game is restarted. The theme is shown under the score.
+- Each level takes 10 different theme words of its length; if the theme is short on that
+  length, the nearest lengths fill in, so words come back across levels.
+- Testing: Ctrl+click the theme name = next theme, Alt+click = previous theme.

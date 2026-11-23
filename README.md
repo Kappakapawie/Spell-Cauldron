@@ -25,7 +25,7 @@ Drag the right letters from the table into the word, then stir the brew to see i
 |---|---|
 | `scenes/main.tscn` | The game scene |
 | `scripts/main.gd` | Game flow, drag & drop, stirring, hints, drawing, UI |
-| `scripts/game_data.gd` | **Difficulty levels and the word list (edit here to add words)** |
+| `scripts/game_data.gd` | **Difficulty levels and the themed word lists (edit here to add words or themes)** |
 | `scripts/puzzle_maker.gd` | Picks missing letters and safe decoys |
 | `scripts/letter_tile.gd`, `scripts/gap_slot.gd` | A letter tile, an empty gap |
 | `tests/smoke_test.gd` | Headless check: `godot --headless --path . --script res://tests/smoke_test.gd` |

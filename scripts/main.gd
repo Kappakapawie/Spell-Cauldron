@@ -21,6 +21,8 @@ const ENGRAVING_Y := 560.0
 const STIR_SWIPE := 150.0  ## how far left (pixels) you swipe over the brew to stir
 
 var level := 1
+var theme := ""              ## the word theme for this whole play session (picked at start)
+var theme_label: Label
 var word_number := 0
 var session_words: Array = []
 var puzzle: Dictionary = {}
@@ -158,6 +160,7 @@ func _ready() -> void:
 	engrave_font.variation_embolden = 0.9
 	engrave_font.spacing_glyph = 4
 	_load_game()
+	theme = GameData.THEMES.keys().pick_random()  # locked in until the game restarts
 	_build_ui()
 	_start_level(1)
 
@@ -215,6 +218,13 @@ func _cheat_click(p: Vector2, fill: bool) -> bool:
 				potions[kind] = shelf_slots[kind] if fill else 0
 				incoming[kind] = 0
 				hit = true
+		if theme_label.get_global_rect().has_point(p):
+			# Testing: Ctrl = next theme, Alt = previous theme, then the level starts over.
+			var names: Array = GameData.THEMES.keys()
+			var i := names.find(theme)
+			theme = names[(i + (1 if fill else -1) + names.size()) % names.size()]
+			_start_level(level)
+			hit = true
 		if score_label.get_global_rect().has_point(p):
 			score = score + 1000 if fill else 0
 			score_incoming = 0
@@ -357,18 +367,25 @@ func _start_level(n: int) -> void:
 	_start_word()
 
 
+## 10 words from this session's theme. Words of the level's length come first (in random
+## order); if the theme has too few, the nearest lengths fill up the rest. So the same
+## words can come back on other levels, but never twice in one level.
 func _pick_words(settings: Dictionary) -> Array:
 	var min_len: int = settings.min_len
 	var max_len: int = settings.max_len
-	var pool: Array = []
-	for e in GameData.WORDS:
+	var ranked: Array = []
+	for e in GameData.THEMES[theme]:
 		var l := String(e[0]).length()
-		if l >= min_len and l <= max_len:
-			pool.append(e)
-	pool.shuffle()
+		var dist := 0
+		if l < min_len:
+			dist = min_len - l
+		elif l > max_len:
+			dist = l - max_len
+		ranked.append({"entry": e, "key": dist + randf() * 0.9})
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.key < b.key)
 	var out: Array = []
 	while out.size() < GameData.WORDS_PER_LEVEL:
-		out.append(pool[out.size() % pool.size()])
+		out.append(ranked[out.size() % ranked.size()].entry)
 	return out
 
 
@@ -428,6 +445,7 @@ func _start_word() -> void:
 		_tween_node(t, t.home_position, 1.0, t.home_rotation, 0.3)
 
 	progress_label.text = "Word %d / %d" % [word_number + 1, GameData.WORDS_PER_LEVEL]
+	theme_label.text = "Theme: %s" % theme
 
 	# The picture stays hidden until a Vision potion is drunk.
 	if picture_tween:
@@ -1511,6 +1529,17 @@ func _build_ui() -> void:
 	score_label.position = Vector2(860, 18)
 	score_label.add_theme_color_override("font_color", BREW_GOLD)
 	root.add_child(score_label)
+
+	# This session's word theme, under the score and word counter.
+	theme_label = _label("", 19)
+	theme_label.position = Vector2(860, 54)
+	theme_label.size = Vector2(400, 26)
+	theme_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	theme_label.add_theme_color_override("font_color", Color("e8c27a"))
+	theme_label.add_theme_constant_override("outline_size", 6)
+	theme_label.add_theme_color_override("font_outline_color", Color("2c1c14"))
+	theme_label.tooltip_text = "All words this session come from this theme.\nRestart the game for a new theme."
+	root.add_child(theme_label)
 
 	var tip := _label("Stir the pot: swipe\nleft across the brew!", 18)
 	tip.position = Vector2(40, 300)
