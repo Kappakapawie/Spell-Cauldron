@@ -163,6 +163,72 @@ func _process(delta: float) -> void:
 			_familiar_place()
 
 
+# ---------------------------------------------------------------- Ctrl / Alt shortcuts
+
+## Ctrl+click (fill = true) fills up or completes the value under the mouse;
+## Alt+click (fill = false) removes its progress. Returns true if something was hit.
+func _cheat_click(p: Vector2, fill: bool) -> bool:
+	var hit := false
+	if shop_panel.visible:
+		# Shelves menu: shelf rows, upgrade rows and the star total header.
+		for kind in shop_rows:
+			if (shop_rows[kind].row as Control).get_global_rect().has_point(p):
+				shelf_slots[kind] = MAX_SLOTS if fill else START_SLOTS
+				potions[kind] = mini(potions[kind], shelf_slots[kind])
+				hit = true
+		for u in UPGRADES:
+			if (upgrade_rows[u.id].row as Control).get_global_rect().has_point(p):
+				if fill:
+					owned_upgrades[u.id] = true
+				else:
+					owned_upgrades.erase(u.id)
+				hit = true
+		if (upgrade_rows["_header"].label as Control).get_global_rect().has_point(p):
+			for n in range(1, GameData.LEVELS.size() + 1):
+				if fill:
+					level_records[n] = {"best": 100, "conquered": true}
+				else:
+					level_records.erase(n)
+			hit = true
+	else:
+		# Level stars (the whole column: button + star).
+		for i in level_stars.size():
+			if (level_stars[i].get_parent() as Control).get_global_rect().has_point(p):
+				if fill:
+					level_records[i + 1] = {"best": 100, "conquered": true}
+				else:
+					level_records.erase(i + 1)
+				hit = true
+		# Potion rows: the shelf of flasks and its button.
+		for kind in shelves:
+			if ((shelves[kind] as Control).get_parent() as Control).get_global_rect().has_point(p):
+				potions[kind] = shelf_slots[kind] if fill else 0
+				incoming[kind] = 0
+				hit = true
+		if score_label.get_global_rect().has_point(p):
+			score = score + 1000 if fill else 0
+			score_incoming = 0
+			hit = true
+		if progress_label.get_global_rect().has_point(p) and not complete_panel.visible:
+			if fill:
+				level_points = level_max()
+				_show_level_complete()  # finish the level with full marks
+			else:
+				_start_level(level)  # start the level over
+			hit = true
+	if not hit:
+		return false
+	var fx := sparkles if fill else smoke
+	fx.position = p
+	_burst(fx)
+	_save_game()
+	_update_level_stars()
+	_update_potion_ui()
+	if shop_panel.visible:
+		_update_shop()
+	return true
+
+
 # ---------------------------------------------------------------- owl familiar
 
 func _has_familiar() -> bool:
@@ -478,6 +544,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Ctrl+click fills up / completes a value, Alt+click removes its progress.
+	var click := event as InputEventMouseButton
+	if click and click.pressed and click.button_index == MOUSE_BUTTON_LEFT \
+			and (click.ctrl_pressed or click.alt_pressed) and dragged == null:
+		if _cheat_click(get_global_mouse_position(), click.ctrl_pressed):
+			get_viewport().set_input_as_handled()
+			return
 	if dragged == null and not stirring:
 		return
 	var p := get_global_mouse_position()
@@ -721,6 +794,7 @@ func _brew_success() -> void:
 
 
 func _brew_fail() -> void:
+	smoke.position = BREW_CENTER
 	_burst(smoke)
 	var tw := create_tween()
 	tw.tween_property(self, "brew_color", BREW_MURKY, 0.25)
@@ -1448,7 +1522,7 @@ func _build_shop(root: Control) -> void:
 		buy.add_theme_font_size_override("font_size", 19)
 		buy.pressed.connect(_buy_slot.bind(kind))
 		row.add_child(buy)
-		shop_rows[kind] = {"label": info, "button": buy}
+		shop_rows[kind] = {"label": info, "button": buy, "row": row}
 
 	# Star upgrades: unlocked by total level stars, bought with score points.
 	var header := _label("", 24)
@@ -1469,7 +1543,7 @@ func _build_shop(root: Control) -> void:
 		buy.add_theme_font_size_override("font_size", 18)
 		buy.pressed.connect(_on_upgrade_button.bind(u.id))
 		row.add_child(buy)
-		upgrade_rows[u.id] = {"label": info, "button": buy}
+		upgrade_rows[u.id] = {"label": info, "button": buy, "row": row}
 	var close := _button("Close", Vector2(160, 50))
 	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	close.pressed.connect(func() -> void: shop_panel.visible = false)

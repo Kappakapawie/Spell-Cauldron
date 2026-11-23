@@ -13,6 +13,12 @@ Drag the right letters from the table into the word, then stir the brew to see i
 - **Where?** shows where a missing letter goes. **Meaning?** shows what the word means.
 - Choose difficulty **1–10** at the top. Ten words complete a level.
 
+## Testing shortcuts
+- **Ctrl+click** a value to fill it up / complete it, **Alt+click** to remove its progress:
+  level stars, a potion row (shelf or button), Score (+1000 / 0), the "Word x / 10" counter
+  (finish the level with 100 / restart it), and in the Shelves menu: shelf rows, upgrade rows,
+  and the "your stars" header (all levels 100 / all cleared).
+
 ## Project layout
 | Path | What it is |
 |---|---|

@@ -170,6 +170,46 @@ func _check_gameplay() -> void:
 		_fail("discount must never make a drink free")
 	print("discount and lucky cauldron ok")
 
+	# Ctrl+click fills, Alt+click resets.
+	main.owned_upgrades = {}
+	main._start_level(1)
+	await process_frame
+	var star_col: Control = main.level_stars[4].get_parent()
+	main._cheat_click(star_col.get_global_rect().get_center(), true)
+	if not main.level_records.get(5, {}).get("conquered", false):
+		_fail("ctrl+click on level 5 star did not conquer it")
+	main._cheat_click(star_col.get_global_rect().get_center(), false)
+	if main.level_records.has(5):
+		_fail("alt+click on level 5 star did not clear it")
+	var shelf_row: Control = (main.shelves[PotionArt.VISION] as Control).get_parent()
+	main._cheat_click(shelf_row.get_global_rect().get_center(), true)
+	if main.potions[PotionArt.VISION] != main.shelf_slots[PotionArt.VISION]:
+		_fail("ctrl+click on Vision row did not fill the shelf")
+	main._cheat_click(shelf_row.get_global_rect().get_center(), false)
+	if main.potions[PotionArt.VISION] != 0:
+		_fail("alt+click on Vision row did not empty the shelf")
+	main.score = 5
+	main._cheat_click(main.score_label.get_global_rect().get_center(), true)
+	if main.score != 1005:
+		_fail("ctrl+click on score did not add 1000")
+	main._open_shop()
+	await process_frame
+	var up_row: Control = main.upgrade_rows["familiar"].row
+	main._cheat_click(up_row.get_global_rect().get_center(), true)
+	var hdr: Control = main.upgrade_rows["_header"].label
+	main._cheat_click(hdr.get_global_rect().get_center(), true)
+	if not main.owned_upgrades.has("familiar") or main.total_stars() != 1000:
+		_fail("ctrl+click in Shelves menu: owl %s, stars %d" % [main.owned_upgrades.has("familiar"), main.total_stars()])
+	main._cheat_click(hdr.get_global_rect().get_center(), false)
+	main._cheat_click(up_row.get_global_rect().get_center(), false)
+	if main.owned_upgrades.has("familiar") or main.total_stars() != 0:
+		_fail("alt+click in Shelves menu did not reset")
+	main.shop_panel.visible = false
+	main._cheat_click(main.progress_label.get_global_rect().get_center(), true)
+	if not main.complete_panel.visible or main.level_records.get(1, {}).get("best", 0) != 100:
+		_fail("ctrl+click on word counter did not finish the level with 100")
+	print("ctrl/alt shortcuts ok")
+
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)
 
