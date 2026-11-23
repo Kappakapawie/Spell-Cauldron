@@ -16,11 +16,13 @@
     each potion reveals more words (hidden parts show as "…"); once all known, it reopens free.
   - Easier levels reveal more per potion: full meaning / clearest picture takes 2 potions on
     levels 1-3, 3 on levels 4-6, 4 on levels 7-10.
-  - **Level stars:** a level run scores (potions earned − potions drunk in that run) × 10, never
-    below 0, no matter how many potions you already had. It is saved as a number in a star under
-    that level's button (best run kept). Brewing all 10 words without drinking any potion gives
-    the max: the star turns solid gold and the level is *conquered*.
-  - You can hold at most 10 of each potion. Every potion earned beyond that becomes 10 score points.
+  - **Level stars (out of 100):** each word is worth 10 points; drinking any Vision potion on it
+    removes 5, any Wisdom potion removes 5 (both = 0). *Where?* is free and doesn't count.
+    The best run is saved as a number in a star under the level button; 100 = solid gold star,
+    level *conquered*.
+  - **Shelves:** each shelf starts with 3 slots (empty slots shown faintly). Potions earned beyond
+    a full shelf become 10 score points. The *Shelves* menu spends score on extra slots
+    (30, 60, 90, ... points), up to 10 per shelf.
   - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
   - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.

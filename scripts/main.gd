@@ -68,11 +68,11 @@ var wisdom_level := 0      ## Wisdom potions drunk for this word (max _reveal_st
 var wisdom_order: Array = []  ## order in which the meaning's words get revealed
 var vision_level := 0      ## Vision potions drunk for this word (max _reveal_steps())
 
-## Level score = (potions earned this run - potions spent this run) x 10.
-## Brewing all 10 words without drinking anything gives the max and conquers the level.
-var level_earned := 0      ## reward potions earned in the current level run
-var level_spent := 0       ## potions drunk in the current level run
-var level_max_points := 0  ## points for a run where no potion is drunk
+## Level score (out of 100): each word is worth 10 points. Drinking any Vision potion
+## on a word removes 5, drinking any Wisdom potion removes 5. 100 = conquered.
+const WORD_POINTS := 10
+const HELP_PENALTY := 5
+var level_points := 0      ## points earned so far in the current level run
 var level_records := {}    ## level -> {"best": int, "conquered": bool}
 var level_stars: Array[LevelStar] = []
 const SAVE_PATH := "user://save.cfg"
@@ -88,8 +88,13 @@ var progress_label: Label
 var thought: ThoughtCloud   ## the Wisdom hint, floating above the cauldron
 var score_label: Label
 
-const POTION_CAP := 10        ## most potions of one kind you can hold
-const POINTS_PER_POTION := 10 ## every potion earned beyond the cap becomes points
+const START_SLOTS := 3        ## potions of one kind a shelf holds at first
+const MAX_SLOTS := 10         ## the most a shelf can be upgraded to
+const POINTS_PER_POTION := 10 ## every potion earned beyond a full shelf becomes points
+var shelf_slots := {PotionArt.WISDOM: START_SLOTS, PotionArt.VISION: START_SLOTS}
+var shop_panel: PanelContainer
+var shop_rows := {}           ## kind -> {label: Label, button: Button}
+var shop_score_label: Label
 var score := 0
 var score_incoming := 0       ## points still flying to the score counter
 var level_buttons: Array[Button] = []
@@ -143,11 +148,7 @@ func _start_level(n: int) -> void:
 	var settings: Dictionary = GameData.LEVELS[level - 1]
 	session_words = _pick_words(settings)
 	word_number = 0
-	level_earned = 0
-	level_spent = 0
-	level_max_points = 0
-	for e in session_words:
-		level_max_points += _reward_for(String(e[0]).to_upper()) * POINTS_PER_POTION
+	level_points = 0
 	complete_panel.visible = false
 	_start_word()
 
@@ -247,8 +248,8 @@ func _show_level_complete() -> void:
 	# Record this run's points under the level's star. Perfect = every reward potion became points.
 	var rec: Dictionary = level_records.get(level, {"best": 0, "conquered": false})
 	var was_conquered: bool = rec.conquered
-	var level_points := level_score()
-	var perfect := level_spent == 0 and level_points >= level_max_points
+	var level_max_points := level_max()
+	var perfect := level_points >= level_max_points
 	rec.best = maxi(int(rec.best), level_points)
 	rec.conquered = was_conquered or perfect
 	level_records[level] = rec
@@ -337,7 +338,7 @@ func _word_filled() -> bool:
 # ---------------------------------------------------------------- input: drag & stir
 
 func _unhandled_input(event: InputEvent) -> void:
-	if busy or complete_panel.visible:
+	if busy or complete_panel.visible or shop_panel.visible:
 		return
 	var mb := event as InputEventMouseButton
 	if mb and mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
@@ -580,6 +581,7 @@ func _brew_success() -> void:
 		picture_tween.kill()
 	picture_tween = create_tween()
 	picture_tween.tween_property(self, "picture_alpha", 1.0, 0.5)
+	level_points += word_score()
 	_award_potions()
 	for i in row.size():
 		var node: Node2D = row[i]
@@ -773,7 +775,6 @@ func _pay(kind: String) -> bool:
 	if potions[kind] < cost:
 		return false
 	potions[kind] -= cost
-	level_spent += cost
 	_save_game()
 	return true
 
@@ -788,17 +789,20 @@ func _load_game() -> void:
 	for kind in potions.keys():
 		potions[kind] = int(cfg.get_value("potions", kind, potions[kind]))
 	score = int(cfg.get_value("progress", "score", 0))
+	for kind in shelf_slots.keys():
+		shelf_slots[kind] = clampi(int(cfg.get_value("shelves", kind, START_SLOTS)), START_SLOTS, MAX_SLOTS)
+	# Level stars use the out-of-100 scoring ("stars" section; older "levels" data is ignored).
 	for n in range(1, GameData.LEVELS.size() + 1):
-		if cfg.has_section_key("levels", "best_%d" % n):
+		if cfg.has_section_key("stars", "best_%d" % n):
 			level_records[n] = {
-				"best": int(cfg.get_value("levels", "best_%d" % n, 0)),
-				"conquered": bool(cfg.get_value("levels", "conquered_%d" % n, false)),
+				"best": int(cfg.get_value("stars", "best_%d" % n, 0)),
+				"conquered": bool(cfg.get_value("stars", "conquered_%d" % n, false)),
 			}
-	# Older saves could hold more than the cap: turn the extra into points.
+	# More potions than shelf space (e.g. from an older save): the extra becomes points.
 	for kind in potions.keys():
-		if potions[kind] > POTION_CAP:
-			score += (potions[kind] - POTION_CAP) * POINTS_PER_POTION
-			potions[kind] = POTION_CAP
+		if potions[kind] > shelf_slots[kind]:
+			score += (potions[kind] - shelf_slots[kind]) * POINTS_PER_POTION
+			potions[kind] = shelf_slots[kind]
 	_save_game()
 
 
@@ -809,15 +813,16 @@ func _save_game() -> void:
 	for kind in potions.keys():
 		cfg.set_value("potions", kind, potions[kind])
 	cfg.set_value("progress", "score", score)
+	for kind in shelf_slots:
+		cfg.set_value("shelves", kind, shelf_slots[kind])
 	for n in level_records:
-		cfg.set_value("levels", "best_%d" % n, level_records[n].best)
-		cfg.set_value("levels", "conquered_%d" % n, level_records[n].conquered)
+		cfg.set_value("stars", "best_%d" % n, level_records[n].best)
+		cfg.set_value("stars", "conquered_%d" % n, level_records[n].conquered)
 	cfg.save(SAVE_PATH)
 
 
 func _award_potions() -> void:
 	var kinds := [PotionArt.WISDOM, PotionArt.VISION]
-	level_earned += _potion_reward()
 	for i in _potion_reward():
 		var kind: String = kinds[randi() % 2]
 		var fly := FlyingPotion.new()
@@ -829,7 +834,7 @@ func _award_potions() -> void:
 		tw.tween_interval(0.25 + i * 0.18)
 		tw.tween_property(fly, "position", fly.position + Vector2(0, -90), 0.3)
 		# Count (and save) right away; the shelf / score only shows it once it lands.
-		if potions[kind] < POTION_CAP:
+		if potions[kind] < shelf_slots[kind]:
 			potions[kind] += 1
 			incoming[kind] = incoming.get(kind, 0) + 1
 			var shelf: PotionShelf = shelves[kind]
@@ -856,8 +861,18 @@ func _award_potions() -> void:
 
 
 ## Points for the current level run: what you earned minus what you drank, never below 0.
-func level_score() -> int:
-	return maxi(0, level_earned - level_spent) * POINTS_PER_POTION
+func level_max() -> int:
+	return GameData.WORDS_PER_LEVEL * WORD_POINTS
+
+
+## Points for the word just brewed: 10, minus 5 if Vision was used, minus 5 if Wisdom was used.
+func word_score() -> int:
+	var pts := WORD_POINTS
+	if vision_level > 0:
+		pts -= HELP_PENALTY
+	if wisdom_level > 0:
+		pts -= HELP_PENALTY
+	return maxi(0, pts)
 
 
 func _update_level_stars() -> void:
@@ -882,7 +897,9 @@ func _update_potion_ui() -> void:
 		return
 	var cost := _potion_cost()
 	for kind in shelves:
-		(shelves[kind] as PotionShelf).count = potions[kind] - incoming.get(kind, 0)
+		var shelf := shelves[kind] as PotionShelf
+		shelf.capacity = shelf_slots[kind]
+		shelf.count = potions[kind] - incoming.get(kind, 0)
 	score_label.text = "Score: %d" % (score - score_incoming)
 	var steps := _reveal_steps()
 	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
@@ -1202,6 +1219,21 @@ func _build_ui() -> void:
 	where.tooltip_text = "Show where a missing letter goes"
 	where.pressed.connect(_show_where_hint)
 	where_row.add_child(where)
+	var shop_row := HBoxContainer.new()
+	shop_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_row.add_theme_constant_override("separation", 8)
+	side.add_child(shop_row)
+	var spacer2 := Control.new()
+	spacer2.custom_minimum_size = spacer.custom_minimum_size
+	spacer2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_row.add_child(spacer2)
+	var shop_button := _button("Shelves", Vector2(160, 52))
+	shop_button.add_theme_font_size_override("font_size", 19)
+	shop_button.add_theme_color_override("font_color", BREW_GOLD)
+	shop_button.tooltip_text = "Spend score points on more potion slots"
+	shop_button.pressed.connect(_open_shop)
+	shop_row.add_child(shop_button)
+	_build_shop(root)
 
 	# Level complete popup
 	complete_panel = PanelContainer.new()
@@ -1226,6 +1258,82 @@ func _build_ui() -> void:
 	next_level_button = _button("Next level", Vector2(180, 54))
 	next_level_button.pressed.connect(func() -> void: _start_level(level + 1))
 	buttons.add_child(next_level_button)
+
+
+# ---------------------------------------------------------------- shelves menu
+
+## Score points needed for the next slot on a shelf: 30, 60, 90, ... (more each time).
+func _slot_price(kind: String) -> int:
+	return 30 * (shelf_slots[kind] - START_SLOTS + 1)
+
+
+func _build_shop(root: Control) -> void:
+	shop_panel = PanelContainer.new()
+	shop_panel.position = Vector2(360, 150)
+	shop_panel.custom_minimum_size = Vector2(560, 0)
+	shop_panel.visible = false
+	root.add_child(shop_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	shop_panel.add_child(box)
+	var title := _label("Potion shelves", 30)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color("4a2c17"))
+	box.add_child(title)
+	shop_score_label = _label("", 22)
+	shop_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	shop_score_label.add_theme_color_override("font_color", Color("8a5a1a"))
+	box.add_child(shop_score_label)
+	for kind in [PotionArt.WISDOM, PotionArt.VISION]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		box.add_child(row)
+		var info := _label("", 22)
+		info.custom_minimum_size = Vector2(300, 0)
+		info.add_theme_color_override("font_color", PotionArt.COLORS[kind].darkened(0.35))
+		row.add_child(info)
+		var buy := _button("", Vector2(220, 50))
+		buy.add_theme_font_size_override("font_size", 19)
+		buy.pressed.connect(_buy_slot.bind(kind))
+		row.add_child(buy)
+		shop_rows[kind] = {"label": info, "button": buy}
+	var close := _button("Close", Vector2(160, 50))
+	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close.pressed.connect(func() -> void: shop_panel.visible = false)
+	box.add_child(close)
+
+
+func _open_shop() -> void:
+	if complete_panel.visible:
+		return
+	_update_shop()
+	shop_panel.visible = true
+
+
+func _buy_slot(kind: String) -> void:
+	var price := _slot_price(kind)
+	if shelf_slots[kind] >= MAX_SLOTS or score < price:
+		return
+	score -= price
+	shelf_slots[kind] += 1
+	_save_game()
+	_update_potion_ui()
+	_update_shop()
+
+
+func _update_shop() -> void:
+	shop_score_label.text = "You have %d points to spend" % score
+	for kind in shop_rows:
+		var row: Dictionary = shop_rows[kind]
+		var shelf_name := "Wisdom" if kind == PotionArt.WISDOM else "Vision"
+		(row.label as Label).text = "%s shelf: %d / %d slots" % [shelf_name, shelf_slots[kind], MAX_SLOTS]
+		var buy: Button = row.button
+		if shelf_slots[kind] >= MAX_SLOTS:
+			buy.text = "Full size!"
+			buy.disabled = true
+		else:
+			buy.text = "+1 slot: %d points" % _slot_price(kind)
+			buy.disabled = score < _slot_price(kind)
 
 
 func _label(text: String, font_size: int) -> Label:

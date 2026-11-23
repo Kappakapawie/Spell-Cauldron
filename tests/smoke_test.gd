@@ -62,8 +62,8 @@ func _check_gameplay() -> void:
 		main._drink_wisdom()
 		if main.potions[PotionArt.VISION] != 10 - cost or main.potions[PotionArt.WISDOM] != 10 - cost:
 			_fail("level %d: drinking did not cost %d potions" % [lvl, cost])
-		# Fill both shelves to the cap: every reward potion must turn into points.
-		main.potions = {PotionArt.WISDOM: main.POTION_CAP, PotionArt.VISION: main.POTION_CAP}
+		# Fill both shelves: every reward potion must turn into score points.
+		main.potions = main.shelf_slots.duplicate()
 		var score_before: int = main.score
 		var before: int = main.potions[PotionArt.VISION] + main.potions[PotionArt.WISDOM]
 		var reward: int = main._potion_reward()
@@ -104,34 +104,57 @@ func _check_gameplay() -> void:
 	main._start_level(1)
 	await process_frame
 	main.potions = {PotionArt.WISDOM: 0, PotionArt.VISION: 0}
-	await _play_level(main, false)
+	await _play_level(main)
 	var rec: Dictionary = main.level_records.get(1, {})
-	if rec.is_empty() or not rec.conquered or rec.best != main.level_max_points:
-		_fail("perfect level 1 run was not recorded as conquered: %s" % rec)
+	if rec.is_empty() or not rec.conquered or rec.best != 100:
+		_fail("perfect level 1 run was not recorded as 100 and conquered: %s" % rec)
 	else:
 		print("level 1 conquered with ", rec.best, " points")
 
-	# Drinking one potion on level 2: one potion fewer in points, not conquered.
+	# One Vision potion on one word: that word gives 5 -> 95, not conquered.
 	main._start_level(2)
 	await process_frame
-	main.potions = {PotionArt.WISDOM: 5, PotionArt.VISION: 5}
-	await _play_level(main, true)
-	var rec2: Dictionary = main.level_records.get(2, {})
-	var expected: int = main.level_max_points - main.POINTS_PER_POTION
-	if rec2.is_empty() or rec2.conquered or rec2.best != expected:
-		_fail("level 2 with one potion drunk: expected %d points, not conquered; got %s" % [expected, rec2])
+	main.potions = {PotionArt.WISDOM: 3, PotionArt.VISION: 3}
+	await _play_level(main, ["vision"])
+	_expect_level(main, 2, 95)
+
+	# Vision + Wisdom on one word: that word gives 0 -> 90.
+	main._start_level(3)
+	await process_frame
+	main.potions = {PotionArt.WISDOM: 3, PotionArt.VISION: 3}
+	await _play_level(main, ["vision", "wisdom"])
+	_expect_level(main, 3, 90)
+
+	# Shelves menu: buying a slot spends score and adds room.
+	main.score = 100
+	var price: int = main._slot_price(PotionArt.WISDOM)
+	main._buy_slot(PotionArt.WISDOM)
+	if main.shelf_slots[PotionArt.WISDOM] != main.START_SLOTS + 1 or main.score != 100 - price:
+		_fail("buying a slot: slots %d, score %d" % [main.shelf_slots[PotionArt.WISDOM], main.score])
 	else:
-		print("level 2 with one potion drunk: ", rec2.best, " / ", main.level_max_points)
+		print("bought a Wisdom slot for ", price, " points")
 
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)
 
 
-## Brews all 10 words of the current level; optionally drinks one Vision potion on the first word.
-func _play_level(main: Node, drink_once: bool) -> void:
+func _expect_level(main: Node, lvl: int, points: int) -> void:
+	var rec: Dictionary = main.level_records.get(lvl, {})
+	if rec.is_empty() or rec.conquered or rec.best != points:
+		_fail("level %d: expected %d points, not conquered; got %s" % [lvl, points, rec])
+	else:
+		print("level %d: %d / 100" % [lvl, rec.best])
+
+
+## Brews all 10 words of the current level; drinks the given potions on the first word.
+func _play_level(main: Node, drinks: Array = []) -> void:
 	for w in GameData.WORDS_PER_LEVEL:
-		if drink_once and w == 0:
-			main._drink_vision()
+		if w == 0:
+			for d in drinks:
+				if d == "vision":
+					main._drink_vision()
+				else:
+					main._drink_wisdom()
 		var word: String = main.puzzle.word
 		_solve(main, word, false)
 		await main._stir()
