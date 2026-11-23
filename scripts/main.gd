@@ -17,7 +17,6 @@ const DROP_RADIUS := 64.0
 const BREW_CENTER := Vector2(640, 380)   ## middle of the soup, seen from above
 const BREW_RADIUS := Vector2(290, 115)
 const PICTURE_CENTER := Vector2(640, 425)
-const PICTURE_DELAY := 10.0              ## seconds before the vague picture appears
 const ENGRAVING_Y := 560.0
 const STIR_TURNS := 0.9  ## how many full circles you need to draw to stir
 
@@ -60,8 +59,16 @@ var bubbles: CPUParticles2D
 var sparkles: CPUParticles2D
 var smoke: CPUParticles2D
 
-var picture_alpha := 0.0  ## 0 = invisible, ~0.4 = vague, 1 = fully revealed
+var picture_alpha := 0.0  ## how clear the picture in the brew is: 0 = hidden, 1 = sharp
 var picture_tween: Tween
+
+## Potion stock. Earned by brewing words, spent on the Wisdom / Vision buttons.
+var potions := {PotionArt.WISDOM: 2, PotionArt.VISION: 2}
+var wisdom_used := false   ## Wisdom already drunk for this word (then the meaning is free to reopen)
+var vision_level := 0      ## Vision potions drunk for this word (max VISION_STEPS.size())
+const VISION_STEPS := [0.22, 0.5, 0.78]  ## picture clarity after 1, 2, 3 Vision potions
+var shelves := {}          ## kind -> PotionShelf
+var potion_buttons := {}   ## kind -> Button
 var emoji_font: SystemFont
 var engrave_font: FontVariation
 var spoon: Spoon
@@ -195,13 +202,13 @@ func _start_word() -> void:
 
 	progress_label.text = "Word %d / %d" % [word_number + 1, GameData.WORDS_PER_LEVEL]
 
-	# After a while, a vague picture of the word rises in the brew.
+	# The picture stays hidden until a Vision potion is drunk.
 	if picture_tween:
 		picture_tween.kill()
 	picture_alpha = 0.0
-	picture_tween = create_tween()
-	picture_tween.tween_interval(PICTURE_DELAY)
-	picture_tween.tween_property(self, "picture_alpha", 0.3, 3.0)
+	vision_level = 0
+	wisdom_used = false
+	_update_potion_ui()
 
 
 func _next_word() -> void:
@@ -535,6 +542,7 @@ func _brew_success() -> void:
 		picture_tween.kill()
 	picture_tween = create_tween()
 	picture_tween.tween_property(self, "picture_alpha", 1.0, 0.5)
+	_award_potions()
 	for i in row.size():
 		var node: Node2D = row[i]
 		var slot := node as GapSlot
@@ -633,11 +641,102 @@ func _show_where_hint() -> void:
 	hint_tween.finished.connect(func() -> void: hint_marker.visible = false)
 
 
-func _toggle_meaning() -> void:
+# ---------------------------------------------------------------- potions
+
+## Potions it costs to drink one, by difficulty: 1,1,1,2,2,2,3,3,3,4.
+func _potion_cost() -> int:
+	return 1 + (level - 1) / 3
+
+
+## Potions earned for brewing a word: bigger words give more (1-4).
+func _potion_reward() -> int:
+	var n: int = String(puzzle.word).length()
+	if n <= 4:
+		return 1
+	if n <= 6:
+		return 2
+	if n <= 9:
+		return 3
+	return 4
+
+
+func _drink_wisdom() -> void:
 	if complete_panel.visible:
 		return
+	if wisdom_used:
+		meaning_panel.visible = not meaning_panel.visible  # already paid: reopen for free
+		return
+	if not _pay(PotionArt.WISDOM):
+		return
+	wisdom_used = true
 	meaning_label.text = puzzle.meaning
-	meaning_panel.visible = not meaning_panel.visible
+	meaning_panel.visible = true
+	_update_potion_ui()
+
+
+func _drink_vision() -> void:
+	if complete_panel.visible or vision_level >= VISION_STEPS.size():
+		return
+	if not _pay(PotionArt.VISION):
+		return
+	vision_level += 1
+	if picture_tween:
+		picture_tween.kill()
+	picture_tween = create_tween()
+	picture_tween.tween_property(self, "picture_alpha", VISION_STEPS[vision_level - 1], 1.5) \
+		.set_trans(Tween.TRANS_SINE)
+	_update_potion_ui()
+
+
+func _pay(kind: String) -> bool:
+	var cost := _potion_cost()
+	if potions[kind] < cost:
+		return false
+	potions[kind] -= cost
+	return true
+
+
+func _award_potions() -> void:
+	var kinds := [PotionArt.WISDOM, PotionArt.VISION]
+	for i in _potion_reward():
+		var kind: String = kinds[randi() % 2]
+		var fly := FlyingPotion.new()
+		fly.liquid = PotionArt.COLORS[kind]
+		fly.position = WORD_CENTER + Vector2(randf_range(-60, 60), 0)
+		fly.scale = Vector2.ONE * 1.6
+		add_child(fly)
+		var shelf: PotionShelf = shelves[kind]
+		var tw := fly.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		tw.tween_interval(0.25 + i * 0.18)
+		tw.tween_property(fly, "position", fly.position + Vector2(0, -90), 0.3)
+		tw.tween_property(fly, "position", shelf.slot_global_position(potions[kind] + i), 0.55)
+		tw.parallel().tween_property(fly, "scale", Vector2.ONE, 0.55)
+		tw.tween_callback(func() -> void:
+			potions[kind] += 1
+			_update_potion_ui()
+			fly.queue_free())
+
+
+func _update_potion_ui() -> void:
+	if shelves.is_empty():
+		return
+	var cost := _potion_cost()
+	for kind in shelves:
+		(shelves[kind] as PotionShelf).count = potions[kind]
+	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
+	if wisdom_used:
+		wisdom.text = "Wisdom\n(meaning)"
+		wisdom.disabled = false
+	else:
+		wisdom.text = "Wisdom\ncosts %d" % cost
+		wisdom.disabled = potions[PotionArt.WISDOM] < cost
+	var vision: Button = potion_buttons[PotionArt.VISION]
+	if vision_level >= VISION_STEPS.size():
+		vision.text = "Vision\n(clearest)"
+		vision.disabled = true
+	else:
+		vision.text = "Vision\ncosts %d" % cost
+		vision.disabled = potions[PotionArt.VISION] < cost
 
 
 func _engraving_text() -> String:
@@ -713,17 +812,17 @@ func _draw_picture(time: float) -> void:
 	var wobble := 1.0 - picture_alpha  # less wobble and blur as it becomes clear
 	draw_set_transform(PICTURE_CENTER, sin(time * 0.9) * 0.08 * wobble,
 		Vector2(1.0 + sin(time * 1.4) * 0.05 * wobble, 0.8 + sin(time * 1.1) * 0.05 * wobble))
-	var clear := clampf((picture_alpha - 0.3) / 0.7, 0.0, 1.0)  # 0 while vague, 1 when revealed
-	var tint := brew_color.lightened(0.5).lerp(Color.WHITE, clear)
-	var blur := 12.0 * (1.0 - clear)
+	var clear := picture_alpha  # each Vision potion raises this; a correct word makes it 1
+	var tint := brew_color.lightened(0.5).lerp(Color.WHITE, clear * clear)
+	var blur := 16.0 * (1.0 - clear)
 	# Several shifted, faint copies blur the picture while it is still a mystery.
 	for i in 8:
 		var a := TAU * i / 8.0
 		var c := tint
-		c.a = picture_alpha * 0.35 * (1.0 - clear)
+		c.a = 0.3 * (1.0 - clear) * minf(1.0, clear * 5.0)
 		draw_string(emoji_font, Vector2(-150, baseline) + Vector2(cos(a), sin(a)) * blur, pic, HORIZONTAL_ALIGNMENT_CENTER, 300, fs, c)
 	var main_c := tint
-	main_c.a = picture_alpha * (0.35 + 0.65 * clear)
+	main_c.a = 0.2 + 0.8 * clear * clear
 	draw_string(emoji_font, Vector2(-150, baseline), pic, HORIZONTAL_ALIGNMENT_CENTER, 300, fs, main_c)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -894,18 +993,45 @@ func _build_ui() -> void:
 
 	# Action buttons
 	var side := VBoxContainer.new()
-	side.position = Vector2(1070, 280)
+	side.position = Vector2(975, 220)
 	side.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	side.add_theme_constant_override("separation", 12)
 	root.add_child(side)
-	var where := _button("Where?", Vector2(180, 54))
+	# Each potion: a shelf of little flask icons, then the button that drinks one.
+	var potion_rows := [
+		[PotionArt.WISDOM, "Drink to learn what the word means", _drink_wisdom],
+		[PotionArt.VISION, "Drink to see the picture in the brew more clearly", _drink_vision],
+	]
+	for info in potion_rows:
+		var kind: String = info[0]
+		var hbox := HBoxContainer.new()
+		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_theme_constant_override("separation", 8)
+		side.add_child(hbox)
+		var shelf := PotionShelf.new()
+		shelf.liquid = PotionArt.COLORS[kind]
+		hbox.add_child(shelf)
+		shelves[kind] = shelf
+		var b := _button("", Vector2(160, 64))
+		b.add_theme_font_size_override("font_size", 19)
+		b.add_theme_color_override("font_color", PotionArt.COLORS[kind].lightened(0.55))
+		b.tooltip_text = info[1]
+		b.pressed.connect(info[2])
+		hbox.add_child(b)
+		potion_buttons[kind] = b
+	var where_row := HBoxContainer.new()
+	where_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	where_row.add_theme_constant_override("separation", 8)
+	side.add_child(where_row)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(PotionShelf.PER_ROW * PotionShelf.STEP + 4, 0)
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	where_row.add_child(spacer)
+	var where := _button("Where?\nfree", Vector2(160, 64))
+	where.add_theme_font_size_override("font_size", 19)
 	where.tooltip_text = "Show where a missing letter goes"
 	where.pressed.connect(_show_where_hint)
-	side.add_child(where)
-	var meaning := _button("Meaning?", Vector2(180, 54))
-	meaning.tooltip_text = "Show what the word means"
-	meaning.pressed.connect(_toggle_meaning)
-	side.add_child(meaning)
+	where_row.add_child(where)
 
 	# Level complete popup
 	complete_panel = PanelContainer.new()
@@ -956,6 +1082,8 @@ func _make_theme() -> Theme:
 	t.set_stylebox("pressed", "Button", _ui_box(Color("d9a441"), Color("fff0c2")))
 	t.set_stylebox("hover_pressed", "Button", _ui_box(Color("e0b052"), Color("fff0c2")))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	t.set_stylebox("disabled", "Button", _ui_box(Color("4a3226"), Color("6b5040")))
+	t.set_color("font_disabled_color", "Button", Color(1, 0.95, 0.85, 0.35))
 	t.set_color("font_color", "Button", Color("fff3d6"))
 	t.set_color("font_hover_color", "Button", Color("ffffff"))
 	t.set_color("font_pressed_color", "Button", Color("2b1a0e"))
@@ -1001,6 +1129,15 @@ class Marker extends Node2D:
 		draw_colored_polygon(PackedVector2Array([
 			Vector2(-16, tip - 24), Vector2(16, tip - 24), Vector2(0, tip)
 		]), color)
+
+
+## A reward potion flying from the cauldron to its shelf.
+class FlyingPotion extends Node2D:
+	var liquid := Color.WHITE
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 16.0, Color(liquid, 0.25))
+		PotionArt.draw_flask(self, Vector2.ZERO, 1.0, liquid)
 
 
 ## A wooden spoon that follows the mouse while you stir.

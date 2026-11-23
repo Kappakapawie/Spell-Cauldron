@@ -54,10 +54,22 @@ func _check_gameplay() -> void:
 		await main._stir()
 		if main.word_number != 0:
 			_fail("level %d: wrong answer advanced the game" % lvl)
+		# Potions: drinking costs potions; brewing the word earns some.
+		main.potions = {PotionArt.WISDOM: 10, PotionArt.VISION: 10}
+		var cost: int = main._potion_cost()
+		main._drink_vision()
+		main._drink_wisdom()
+		if main.potions[PotionArt.VISION] != 10 - cost or main.potions[PotionArt.WISDOM] != 10 - cost:
+			_fail("level %d: drinking did not cost %d potions" % [lvl, cost])
+		var before: int = main.potions[PotionArt.VISION] + main.potions[PotionArt.WISDOM]
+		var reward: int = main._potion_reward()
 		_solve(main, word, false)
 		if main._spelling() != word:
 			_fail("level %d: spelled %s, expected %s" % [lvl, main._spelling(), word])
 		await main._stir()
+		var after: int = main.potions[PotionArt.VISION] + main.potions[PotionArt.WISDOM]
+		if after != before + reward:
+			_fail("level %d: expected %d reward potions, got %d" % [lvl, reward, after - before])
 		if main.word_number != 1:
 			_fail("level %d: correct answer did not advance (word %s)" % [lvl, word])
 		else:

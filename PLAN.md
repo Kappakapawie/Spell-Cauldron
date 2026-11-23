@@ -10,8 +10,13 @@
 - **Cauldron:** seen from above. Letters float over it in gently bobbing gas bubbles.
   Golden letters engraved on the front say how many letters to find ("FIND 2 LETTERS"),
   then "STIR THE POT!" once every gap is filled. No other text instructions.
-- **Picture clue:** after 10 seconds a vague, blurry picture of the word rises in the brew,
-  and turns sharp when the word is brewed correctly. (Placeholder: Windows emoji; replace with art later.)
+- **Potions (replace free hints):** brewing a word earns potions (1 for short words, up to 4 for long ones),
+  randomly *Wisdom* (blue) or *Vision* (pink). They show as flask icons left of their buttons.
+  - *Wisdom* shows what the word means (once paid, it can be reopened free for that word).
+  - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
+    The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
+  - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.
+  - *Where?* (shows a gap position) stays free.
 - **Gaps:** visible empty slots on levels 1–4, hidden on levels 5–10 (you work out where letters go).
 - **Letters:** used up when placed. Duplicates appear when the word needs them (two E's for "tree").
   Decoys are never letters that could spell a *different* real word.
