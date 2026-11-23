@@ -77,8 +77,13 @@ var engrave_font: FontVariation
 var spoon: Spoon
 
 var progress_label: Label
-var meaning_panel: PanelContainer
-var meaning_label: Label
+var thought: ThoughtCloud   ## the Wisdom hint, floating above the cauldron
+var score_label: Label
+
+const POTION_CAP := 10        ## most potions of one kind you can hold
+const POINTS_PER_POTION := 10 ## every potion earned beyond the cap becomes points
+var score := 0
+var score_incoming := 0       ## points still flying to the score counter
 var level_buttons: Array[Button] = []
 var complete_panel: PanelContainer
 var complete_label: Label
@@ -163,7 +168,7 @@ func _start_word() -> void:
 	hint_count = 0
 	hint_marker.visible = false
 	insert_marker.visible = false
-	meaning_panel.visible = false
+	thought.hide_thought()
 	brew_color = BREW_GREEN
 
 	puzzle = PuzzleMaker.make(session_words[word_number], GameData.LEVELS[level - 1])
@@ -668,13 +673,12 @@ func _drink_wisdom() -> void:
 	if complete_panel.visible:
 		return
 	if wisdom_used:
-		meaning_panel.visible = not meaning_panel.visible  # already paid: reopen for free
+		thought.toggle()  # already paid: reopen for free
 		return
 	if not _pay(PotionArt.WISDOM):
 		return
 	wisdom_used = true
-	meaning_label.text = puzzle.meaning
-	meaning_panel.visible = true
+	thought.show_text(puzzle.meaning)
 	_update_potion_ui()
 
 
@@ -710,6 +714,13 @@ func _load_game() -> void:
 		return  # first time playing: keep the starting potions
 	for kind in potions.keys():
 		potions[kind] = int(cfg.get_value("potions", kind, potions[kind]))
+	score = int(cfg.get_value("progress", "score", 0))
+	# Older saves could hold more than the cap: turn the extra into points.
+	for kind in potions.keys():
+		if potions[kind] > POTION_CAP:
+			score += (potions[kind] - POTION_CAP) * POINTS_PER_POTION
+			potions[kind] = POTION_CAP
+	_save_game()
 
 
 func _save_game() -> void:
@@ -718,6 +729,7 @@ func _save_game() -> void:
 	var cfg := ConfigFile.new()
 	for kind in potions.keys():
 		cfg.set_value("potions", kind, potions[kind])
+	cfg.set_value("progress", "score", score)
 	cfg.save(SAVE_PATH)
 
 
@@ -730,21 +742,41 @@ func _award_potions() -> void:
 		fly.position = WORD_CENTER + Vector2(randf_range(-60, 60), 0)
 		fly.scale = Vector2.ONE * 1.6
 		add_child(fly)
-		var shelf: PotionShelf = shelves[kind]
-		# Count (and save) the potion right away; the shelf only shows it once it lands.
-		potions[kind] += 1
-		incoming[kind] = incoming.get(kind, 0) + 1
 		var tw := fly.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 		tw.tween_interval(0.25 + i * 0.18)
 		tw.tween_property(fly, "position", fly.position + Vector2(0, -90), 0.3)
-		tw.tween_property(fly, "position", shelf.slot_global_position(potions[kind] - 1), 0.55)
-		tw.parallel().tween_property(fly, "scale", Vector2.ONE, 0.55)
-		tw.tween_callback(func() -> void:
-			incoming[kind] -= 1
-			_update_potion_ui()
-			fly.queue_free())
+		# Count (and save) right away; the shelf / score only shows it once it lands.
+		if potions[kind] < POTION_CAP:
+			potions[kind] += 1
+			incoming[kind] = incoming.get(kind, 0) + 1
+			var shelf: PotionShelf = shelves[kind]
+			tw.tween_property(fly, "position", shelf.slot_global_position(potions[kind] - 1), 0.55)
+			tw.parallel().tween_property(fly, "scale", Vector2.ONE, 0.55)
+			tw.tween_callback(func() -> void:
+				incoming[kind] -= 1
+				_update_potion_ui()
+				fly.queue_free())
+		else:
+			# Shelf is full: this potion turns into points.
+			score += POINTS_PER_POTION
+			score_incoming += POINTS_PER_POTION
+			var target := score_label.global_position + score_label.size * 0.5
+			tw.tween_property(fly, "position", target, 0.55)
+			tw.parallel().tween_property(fly, "scale", Vector2.ONE * 0.6, 0.55)
+			tw.tween_callback(func() -> void:
+				score_incoming -= POINTS_PER_POTION
+				_update_potion_ui()
+				_pop_score()
+				fly.queue_free())
 	_save_game()
 	_update_potion_ui()
+
+
+func _pop_score() -> void:
+	score_label.pivot_offset = score_label.size * 0.5
+	var tw := score_label.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(score_label, "scale", Vector2.ONE * 1.35, 0.1)
+	tw.tween_property(score_label, "scale", Vector2.ONE, 0.25)
 
 
 func _update_potion_ui() -> void:
@@ -753,6 +785,7 @@ func _update_potion_ui() -> void:
 	var cost := _potion_cost()
 	for kind in shelves:
 		(shelves[kind] as PotionShelf).count = potions[kind] - incoming.get(kind, 0)
+	score_label.text = "Score: %d" % (score - score_incoming)
 	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
 	if wisdom_used:
 		wisdom.text = "Wisdom\n(meaning)"
@@ -1003,23 +1036,20 @@ func _build_ui() -> void:
 	progress_label.position = Vector2(1090, 18)
 	root.add_child(progress_label)
 
+	score_label = _label("", 24)
+	score_label.position = Vector2(860, 18)
+	score_label.add_theme_color_override("font_color", BREW_GOLD)
+	root.add_child(score_label)
+
 	var tip := _label("Stir the pot: hold the\nmouse and draw circles!", 18)
 	tip.position = Vector2(40, 300)
 	tip.modulate = Color(1, 1, 1, 0.75)
 	root.add_child(tip)
 
-	# Meaning hint (parchment)
-	meaning_panel = PanelContainer.new()
-	meaning_panel.position = Vector2(340, 70)
-	meaning_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	meaning_panel.visible = false
-	root.add_child(meaning_panel)
-	meaning_label = _label("", 22)
-	meaning_label.custom_minimum_size = Vector2(580, 0)
-	meaning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	meaning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	meaning_label.add_theme_color_override("font_color", Color("4a2c17"))
-	meaning_panel.add_child(meaning_label)
+	# Meaning hint (Wisdom potion): a floating thought
+	thought = ThoughtCloud.new()
+	root.add_child(thought)
+	thought.setup(Vector2(640, 140))
 
 	# Action buttons
 	var side := VBoxContainer.new()

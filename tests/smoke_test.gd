@@ -62,6 +62,9 @@ func _check_gameplay() -> void:
 		main._drink_wisdom()
 		if main.potions[PotionArt.VISION] != 10 - cost or main.potions[PotionArt.WISDOM] != 10 - cost:
 			_fail("level %d: drinking did not cost %d potions" % [lvl, cost])
+		# Fill both shelves to the cap: every reward potion must turn into points.
+		main.potions = {PotionArt.WISDOM: main.POTION_CAP, PotionArt.VISION: main.POTION_CAP}
+		var score_before: int = main.score
 		var before: int = main.potions[PotionArt.VISION] + main.potions[PotionArt.WISDOM]
 		var reward: int = main._potion_reward()
 		_solve(main, word, false)
@@ -69,8 +72,15 @@ func _check_gameplay() -> void:
 			_fail("level %d: spelled %s, expected %s" % [lvl, main._spelling(), word])
 		await main._stir()
 		var after: int = main.potions[PotionArt.VISION] + main.potions[PotionArt.WISDOM]
-		if after != before + reward:
-			_fail("level %d: expected %d reward potions, got %d" % [lvl, reward, after - before])
+		if after != before:
+			_fail("level %d: potions went over the cap (%d -> %d)" % [lvl, before, after])
+		if main.score != score_before + reward * main.POINTS_PER_POTION:
+			_fail("level %d: expected +%d points, got +%d" % [lvl, reward * main.POINTS_PER_POTION, main.score - score_before])
+		# Below the cap, rewards go to the shelves instead.
+		main.potions = {PotionArt.WISDOM: 0, PotionArt.VISION: 0}
+		main._award_potions()
+		if main.potions[PotionArt.WISDOM] + main.potions[PotionArt.VISION] != main._potion_reward():
+			_fail("level %d: rewards below the cap did not reach the shelves" % lvl)
 		if main.word_number != 1:
 			_fail("level %d: correct answer did not advance (word %s)" % [lvl, word])
 		else:
