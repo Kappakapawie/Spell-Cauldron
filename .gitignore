@@ -1,0 +1,11 @@
+# Godot 4 cache and import data (regenerated automatically)
+.godot/
+
+# Exported game builds
+/builds/
+/export/
+
+# OS junk
+Thumbs.db
+desktop.ini
+.DS_Store

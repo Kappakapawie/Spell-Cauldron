@@ -1,0 +1,99 @@
+extends SceneTree
+
+## Headless check: run with
+##   godot --headless --path . --script res://tests/smoke_test.gd
+## Generates puzzles on every level and solves one word per level through the real game scene.
+
+var failures := 0
+
+
+func _initialize() -> void:
+	_check_puzzles()
+	_check_gameplay.call_deferred()
+
+
+func _fail(msg: String) -> void:
+	failures += 1
+	printerr("FAIL: ", msg)
+
+
+func _check_puzzles() -> void:
+	for lvl in GameData.LEVELS.size():
+		var settings: Dictionary = GameData.LEVELS[lvl]
+		var count := 0
+		for e in GameData.WORDS:
+			var l := String(e[0]).length()
+			if l >= settings.min_len and l <= settings.max_len:
+				count += 1
+		if count < GameData.WORDS_PER_LEVEL:
+			_fail("level %d only has %d words" % [lvl + 1, count])
+		for i in 40:
+			var entry: Array = GameData.WORDS[randi() % GameData.WORDS.size()]
+			var p := PuzzleMaker.make(entry, settings)
+			var word: String = p.word
+			var tiles: Array = p.tiles.duplicate()
+			for idx in p.missing:
+				var at := tiles.find(word[idx])
+				if at < 0:
+					_fail("level %d word %s: missing letter %s not on table" % [lvl + 1, word, word[idx]])
+				else:
+					tiles.remove_at(at)
+	print("puzzle check done")
+
+
+func _check_gameplay() -> void:
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	await process_frame
+	for lvl in [1, 4, 5, 10]:
+		main._start_level(lvl)
+		await process_frame
+		var word: String = main.puzzle.word
+		# Wrong attempt first (only if a decoy exists), then the correct one.
+		_solve(main, word, true)
+		await main._stir()
+		if main.word_number != 0:
+			_fail("level %d: wrong answer advanced the game" % lvl)
+		_solve(main, word, false)
+		if main._spelling() != word:
+			_fail("level %d: spelled %s, expected %s" % [lvl, main._spelling(), word])
+		await main._stir()
+		if main.word_number != 1:
+			_fail("level %d: correct answer did not advance (word %s)" % [lvl, word])
+		else:
+			print("level %d ok: %s" % [lvl, word])
+	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
+	quit(1 if failures > 0 else 0)
+
+
+## Places tiles straight into the word, the same way a drop does.
+func _solve(main: Node, word: String, wrong: bool) -> void:
+	for t in main.tiles:
+		if t.in_word:
+			main._take_out_of_word(t)
+			t.in_word = false
+	var free_tiles: Array = main.tiles.duplicate()
+	var missing: Array = main.puzzle.missing
+	var needed: Array = []
+	for idx in missing:
+		needed.append(word[idx])
+	for n in missing.size():
+		var idx: int = missing[n]
+		var letter: String = word[idx]
+		var pick: LetterTile = null
+		for t in free_tiles:
+			var ok: bool = t.letter == letter
+			if wrong and n == 0:
+				ok = not (t.letter in needed)  # a pure decoy
+			if ok:
+				pick = t
+				break
+		free_tiles.erase(pick)
+		pick.in_word = true
+		if main.puzzle.gaps_visible:
+			for item in main.row:
+				if item is GapSlot and item.index == idx:
+					item.tile = pick
+		else:
+			main.row.insert(idx, pick)
+	main._layout_row(false)
