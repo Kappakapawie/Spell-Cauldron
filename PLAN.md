@@ -16,9 +16,10 @@
     each potion reveals more words (hidden parts show as "…"); once all known, it reopens free.
   - Easier levels reveal more per potion: full meaning / clearest picture takes 2 potions on
     levels 1-3, 3 on levels 4-6, 4 on levels 7-10.
-  - **Level stars:** the points earned during a level run are saved as a number in a star under
-    that level's button (best run kept). If every reward potion in the run became points, the run
-    is perfect: the star turns solid gold and the level is *conquered*.
+  - **Level stars:** a level run scores (potions earned − potions drunk in that run) × 10, never
+    below 0, no matter how many potions you already had. It is saved as a number in a star under
+    that level's button (best run kept). Brewing all 10 words without drinking any potion gives
+    the max: the star turns solid gold and the level is *conquered*.
   - You can hold at most 10 of each potion. Every potion earned beyond that becomes 10 score points.
   - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)

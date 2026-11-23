@@ -100,22 +100,41 @@ func _check_gameplay() -> void:
 		_fail("all Wisdom potions did not reveal the full meaning")
 	print("snippet after 1 potion: ", first)
 
-	# A perfect level 1 run (shelves full, nothing spent) conquers the level.
+	# A perfect level 1 run (no potions drunk) conquers it, even starting with empty shelves.
 	main._start_level(1)
 	await process_frame
-	main.potions = {PotionArt.WISDOM: main.POTION_CAP, PotionArt.VISION: main.POTION_CAP}
-	for w in GameData.WORDS_PER_LEVEL:
-		var word: String = main.puzzle.word
-		_solve(main, word, false)
-		await main._stir()
+	main.potions = {PotionArt.WISDOM: 0, PotionArt.VISION: 0}
+	await _play_level(main, false)
 	var rec: Dictionary = main.level_records.get(1, {})
 	if rec.is_empty() or not rec.conquered or rec.best != main.level_max_points:
 		_fail("perfect level 1 run was not recorded as conquered: %s" % rec)
 	else:
 		print("level 1 conquered with ", rec.best, " points")
 
+	# Drinking one potion on level 2: one potion fewer in points, not conquered.
+	main._start_level(2)
+	await process_frame
+	main.potions = {PotionArt.WISDOM: 5, PotionArt.VISION: 5}
+	await _play_level(main, true)
+	var rec2: Dictionary = main.level_records.get(2, {})
+	var expected: int = main.level_max_points - main.POINTS_PER_POTION
+	if rec2.is_empty() or rec2.conquered or rec2.best != expected:
+		_fail("level 2 with one potion drunk: expected %d points, not conquered; got %s" % [expected, rec2])
+	else:
+		print("level 2 with one potion drunk: ", rec2.best, " / ", main.level_max_points)
+
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)
+
+
+## Brews all 10 words of the current level; optionally drinks one Vision potion on the first word.
+func _play_level(main: Node, drink_once: bool) -> void:
+	for w in GameData.WORDS_PER_LEVEL:
+		if drink_once and w == 0:
+			main._drink_vision()
+		var word: String = main.puzzle.word
+		_solve(main, word, false)
+		await main._stir()
 
 
 ## Places tiles straight into the word, the same way a drop does.

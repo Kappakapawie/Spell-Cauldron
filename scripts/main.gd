@@ -68,8 +68,11 @@ var wisdom_level := 0      ## Wisdom potions drunk for this word (max _reveal_st
 var wisdom_order: Array = []  ## order in which the meaning's words get revealed
 var vision_level := 0      ## Vision potions drunk for this word (max _reveal_steps())
 
-var level_points := 0      ## points earned (overflow potions) in the current level run
-var level_max_points := 0  ## points you'd get if every reward potion this run became points
+## Level score = (potions earned this run - potions spent this run) x 10.
+## Brewing all 10 words without drinking anything gives the max and conquers the level.
+var level_earned := 0      ## reward potions earned in the current level run
+var level_spent := 0       ## potions drunk in the current level run
+var level_max_points := 0  ## points for a run where no potion is drunk
 var level_records := {}    ## level -> {"best": int, "conquered": bool}
 var level_stars: Array[LevelStar] = []
 const SAVE_PATH := "user://save.cfg"
@@ -140,7 +143,8 @@ func _start_level(n: int) -> void:
 	var settings: Dictionary = GameData.LEVELS[level - 1]
 	session_words = _pick_words(settings)
 	word_number = 0
-	level_points = 0
+	level_earned = 0
+	level_spent = 0
 	level_max_points = 0
 	for e in session_words:
 		level_max_points += _reward_for(String(e[0]).to_upper()) * POINTS_PER_POTION
@@ -243,7 +247,8 @@ func _show_level_complete() -> void:
 	# Record this run's points under the level's star. Perfect = every reward potion became points.
 	var rec: Dictionary = level_records.get(level, {"best": 0, "conquered": false})
 	var was_conquered: bool = rec.conquered
-	var perfect := level_points >= level_max_points and level_max_points > 0
+	var level_points := level_score()
+	var perfect := level_spent == 0 and level_points >= level_max_points
 	rec.best = maxi(int(rec.best), level_points)
 	rec.conquered = was_conquered or perfect
 	level_records[level] = rec
@@ -768,6 +773,7 @@ func _pay(kind: String) -> bool:
 	if potions[kind] < cost:
 		return false
 	potions[kind] -= cost
+	level_spent += cost
 	_save_game()
 	return true
 
@@ -811,6 +817,7 @@ func _save_game() -> void:
 
 func _award_potions() -> void:
 	var kinds := [PotionArt.WISDOM, PotionArt.VISION]
+	level_earned += _potion_reward()
 	for i in _potion_reward():
 		var kind: String = kinds[randi() % 2]
 		var fly := FlyingPotion.new()
@@ -836,7 +843,6 @@ func _award_potions() -> void:
 			# Shelf is full: this potion turns into points.
 			score += POINTS_PER_POTION
 			score_incoming += POINTS_PER_POTION
-			level_points += POINTS_PER_POTION
 			var target := score_label.global_position + score_label.size * 0.5
 			tw.tween_property(fly, "position", target, 0.55)
 			tw.parallel().tween_property(fly, "scale", Vector2.ONE * 0.6, 0.55)
@@ -847,6 +853,11 @@ func _award_potions() -> void:
 				fly.queue_free())
 	_save_game()
 	_update_potion_ui()
+
+
+## Points for the current level run: what you earned minus what you drank, never below 0.
+func level_score() -> int:
+	return maxi(0, level_earned - level_spent) * POINTS_PER_POTION
 
 
 func _update_level_stars() -> void:
