@@ -95,6 +95,25 @@ var shelf_slots := {PotionArt.WISDOM: START_SLOTS, PotionArt.VISION: START_SLOTS
 var shop_panel: PanelContainer
 var shop_rows := {}           ## kind -> {label: Label, button: Button}
 var shop_score_label: Label
+
+## Star upgrades: unlocked by your total level stars (sum of best stars, max 1000),
+## then bought with score points in the Shelves menu.
+const UPGRADES := [
+	{"id": "discount", "name": "Potion discount", "stars": 200, "price": 100,
+		"desc": "Every drink costs 1 potion less (never below 1)."},
+	{"id": "familiar", "name": "Owl familiar", "stars": 500, "price": 150,
+		"desc": "Places one right letter every 10 seconds.\nCounts as help: -5 on that word."},
+	{"id": "lucky", "name": "Lucky cauldron", "stars": 800, "price": 250,
+		"desc": "Every brewed word gives 1 extra potion."},
+]
+const FAMILIAR_INTERVAL := 10.0
+const FAMILIAR_POS := Vector2(232, 470)
+var owned_upgrades := {}      ## upgrade id -> true
+var familiar_on := true       ## the owl can be switched off for a perfect run
+var familiar_time := 0.0
+var familiar_helped := false  ## the owl placed a letter in this word
+var auto_done := {}           ## hidden-gap words: missing index -> placed by the owl
+var upgrade_rows := {}        ## upgrade id -> {label, button}
 var score := 0
 var score_incoming := 0       ## points still flying to the score counter
 var level_buttons: Array[Button] = []
@@ -133,10 +152,110 @@ func _ready() -> void:
 	_start_level(1)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	queue_redraw()  # keeps the brew, picture and engraving alive
 	if stirring:
 		spoon.position = get_global_mouse_position()
+	if _familiar_working():
+		familiar_time += delta
+		if familiar_time >= FAMILIAR_INTERVAL:
+			familiar_time = 0.0
+			_familiar_place()
+
+
+# ---------------------------------------------------------------- owl familiar
+
+func _has_familiar() -> bool:
+	return owned_upgrades.has("familiar") and familiar_on
+
+
+func _familiar_working() -> bool:
+	return _has_familiar() and not puzzle.is_empty() and not busy and dragged == null \
+		and not stirring and not complete_panel.visible and not shop_panel.visible \
+		and _familiar_next_index() >= 0
+
+
+## The next missing letter the owl would place, or -1 if there is nothing to do.
+func _familiar_next_index() -> int:
+	var word: String = puzzle.word
+	for i in puzzle.missing:
+		if puzzle.gaps_visible:
+			var slot := _slot_for(i)
+			if slot and not (slot.tile and slot.tile.letter == word[i]):
+				return i
+		elif not auto_done.has(i):
+			return i
+	return -1
+
+
+func _slot_for(index: int) -> GapSlot:
+	for item in row:
+		var slot := item as GapSlot
+		if slot and slot.index == index:
+			return slot
+	return null
+
+
+## Puts one right letter into its right place.
+func _familiar_place() -> void:
+	var idx := _familiar_next_index()
+	if idx < 0:
+		return
+	var word: String = puzzle.word
+	var letter := word[idx]
+	# Prefer a matching letter still on the table; otherwise move one the player placed.
+	var t: LetterTile = null
+	for tile in tiles:
+		if tile.letter == letter and not tile.in_word:
+			t = tile
+			break
+	if t == null:
+		for tile in tiles:
+			if tile.letter == letter and not tile.has_meta("auto"):
+				t = tile
+				break
+	if t == null:
+		return
+	_take_out_of_word(t)
+	if puzzle.gaps_visible:
+		var slot := _slot_for(idx)
+		if slot.tile:
+			_send_home(slot.tile)
+		slot.tile = t
+	else:
+		# Insert before the first fixed letter (or owl letter) that comes later in the word.
+		var fixed_indices: Array = []
+		for i in word.length():
+			if not (i in puzzle.missing):
+				fixed_indices.append(i)
+		var pos := row.size()
+		var k := 0
+		for p in row.size():
+			var lt := row[p] as LetterTile
+			if lt == null:
+				continue
+			if not lt.movable:
+				if int(fixed_indices[k]) > idx:
+					pos = p
+					break
+				k += 1
+			elif lt.has_meta("auto") and int(lt.get_meta("auto")) > idx:
+				pos = p
+				break
+		row.insert(pos, t)
+		auto_done[idx] = true
+	t.set_meta("auto", idx)
+	t.in_word = true
+	familiar_helped = true
+	_layout_row(true)
+	sparkles.position = _target_of(t)
+	_burst(sparkles)
+
+
+func _forget_auto(t: LetterTile) -> void:
+	if t.has_meta("auto"):
+		auto_done.erase(int(t.get_meta("auto")))
+		t.remove_meta("auto")
 
 
 # ---------------------------------------------------------------- levels & words
@@ -232,6 +351,9 @@ func _start_word() -> void:
 	vision_level = 0
 	wisdom_level = 0
 	wisdom_order = []
+	familiar_time = 0.0
+	familiar_helped = false
+	auto_done = {}
 	_update_potion_ui()
 
 
@@ -455,10 +577,12 @@ func _take_out_of_word(t: LetterTile) -> void:
 			slot.tile = null
 	row.erase(t)
 	t.in_word = false
+	_forget_auto(t)
 
 
 func _send_home(t: LetterTile) -> void:
 	t.in_word = false
+	_forget_auto(t)
 	_tween_node(t, t.home_position, 1.0, t.home_rotation, 0.3)
 
 
@@ -685,12 +809,15 @@ func _show_where_hint() -> void:
 
 ## Potions it costs to drink one, by difficulty: 1,1,1,2,2,2,3,3,3,4.
 func _potion_cost() -> int:
-	return 1 + (level - 1) / 3
+	var cost := 1 + (level - 1) / 3
+	if owned_upgrades.has("discount"):
+		cost -= 1
+	return maxi(1, cost)
 
 
-## Potions earned for brewing a word: bigger words give more (1-4).
+## Potions earned for brewing a word: bigger words give more (1-4), +1 with Lucky cauldron.
 func _potion_reward() -> int:
-	return _reward_for(puzzle.word)
+	return _reward_for(puzzle.word) + (1 if owned_upgrades.has("lucky") else 0)
 
 
 func _reward_for(word: String) -> int:
@@ -791,6 +918,10 @@ func _load_game() -> void:
 	score = int(cfg.get_value("progress", "score", 0))
 	for kind in shelf_slots.keys():
 		shelf_slots[kind] = clampi(int(cfg.get_value("shelves", kind, START_SLOTS)), START_SLOTS, MAX_SLOTS)
+	for u in UPGRADES:
+		if bool(cfg.get_value("upgrades", u.id, false)):
+			owned_upgrades[u.id] = true
+	familiar_on = bool(cfg.get_value("upgrades", "familiar_on", true))
 	# Level stars use the out-of-100 scoring ("stars" section; older "levels" data is ignored).
 	for n in range(1, GameData.LEVELS.size() + 1):
 		if cfg.has_section_key("stars", "best_%d" % n):
@@ -815,6 +946,9 @@ func _save_game() -> void:
 	cfg.set_value("progress", "score", score)
 	for kind in shelf_slots:
 		cfg.set_value("shelves", kind, shelf_slots[kind])
+	for id in owned_upgrades:
+		cfg.set_value("upgrades", id, true)
+	cfg.set_value("upgrades", "familiar_on", familiar_on)
 	for n in level_records:
 		cfg.set_value("stars", "best_%d" % n, level_records[n].best)
 		cfg.set_value("stars", "conquered_%d" % n, level_records[n].conquered)
@@ -871,6 +1005,8 @@ func word_score() -> int:
 	if vision_level > 0:
 		pts -= HELP_PENALTY
 	if wisdom_level > 0:
+		pts -= HELP_PENALTY
+	if familiar_helped:
 		pts -= HELP_PENALTY
 	return maxi(0, pts)
 
@@ -974,6 +1110,7 @@ func _draw() -> void:
 	_draw_picture(time)
 	# Golden engraving on the front of the cauldron
 	_draw_engraving()
+	_draw_familiar(time)
 	# Table
 	draw_rect(Rect2(0, 595, 1280, 125), Color("8a5a32"))
 	draw_rect(Rect2(0, 595, 1280, 8), Color("a8743f"))
@@ -1004,6 +1141,21 @@ func _draw_picture(time: float) -> void:
 	main_c.a = 0.2 + 0.8 * clear * clear
 	draw_string(emoji_font, Vector2(-150, baseline), pic, HORIZONTAL_ALIGNMENT_CENTER, 300, fs, main_c)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The owl familiar beside the cauldron, with a ring that fills up until it helps.
+func _draw_familiar(time: float) -> void:
+	if not _has_familiar():
+		return
+	var c := FAMILIAR_POS + Vector2(0, sin(time * 1.5) * 3.0)
+	draw_circle(c, 36.0, Color(0, 0, 0, 0.25))
+	draw_arc(c, 36.0, 0.0, TAU, 40, Color(1, 0.85, 0.4, 0.2), 4.0, true)
+	var frac := familiar_time / FAMILIAR_INTERVAL
+	if frac > 0.0:
+		draw_arc(c, 36.0, -PI / 2, -PI / 2 + TAU * frac, 40, BREW_GOLD, 4.0, true)
+	var fs := 40
+	var baseline := (emoji_font.get_ascent(fs) - emoji_font.get_descent(fs)) * 0.5
+	draw_string(emoji_font, c + Vector2(-40, baseline), "🦉", HORIZONTAL_ALIGNMENT_CENTER, 80, fs)
 
 
 func _draw_engraving() -> void:
@@ -1269,8 +1421,8 @@ func _slot_price(kind: String) -> int:
 
 func _build_shop(root: Control) -> void:
 	shop_panel = PanelContainer.new()
-	shop_panel.position = Vector2(360, 150)
-	shop_panel.custom_minimum_size = Vector2(560, 0)
+	shop_panel.position = Vector2(250, 40)
+	shop_panel.custom_minimum_size = Vector2(780, 0)
 	shop_panel.visible = false
 	root.add_child(shop_panel)
 	var box := VBoxContainer.new()
@@ -1289,14 +1441,35 @@ func _build_shop(root: Control) -> void:
 		row.add_theme_constant_override("separation", 16)
 		box.add_child(row)
 		var info := _label("", 22)
-		info.custom_minimum_size = Vector2(300, 0)
+		info.custom_minimum_size = Vector2(480, 0)
 		info.add_theme_color_override("font_color", PotionArt.COLORS[kind].darkened(0.35))
 		row.add_child(info)
-		var buy := _button("", Vector2(220, 50))
+		var buy := _button("", Vector2(250, 50))
 		buy.add_theme_font_size_override("font_size", 19)
 		buy.pressed.connect(_buy_slot.bind(kind))
 		row.add_child(buy)
 		shop_rows[kind] = {"label": info, "button": buy}
+
+	# Star upgrades: unlocked by total level stars, bought with score points.
+	var header := _label("", 24)
+	header.name = "StarHeader"
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.add_theme_color_override("font_color", Color("4a2c17"))
+	box.add_child(header)
+	upgrade_rows["_header"] = {"label": header}
+	for u in UPGRADES:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		box.add_child(row)
+		var info := _label("", 18)
+		info.custom_minimum_size = Vector2(480, 0)
+		info.add_theme_color_override("font_color", Color("4a2c17"))
+		row.add_child(info)
+		var buy := _button("", Vector2(250, 56))
+		buy.add_theme_font_size_override("font_size", 18)
+		buy.pressed.connect(_on_upgrade_button.bind(u.id))
+		row.add_child(buy)
+		upgrade_rows[u.id] = {"label": info, "button": buy}
 	var close := _button("Close", Vector2(160, 50))
 	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	close.pressed.connect(func() -> void: shop_panel.visible = false)
@@ -1321,8 +1494,59 @@ func _buy_slot(kind: String) -> void:
 	_update_shop()
 
 
+## Sum of your best star on every level (max 100 per level, 1000 in total).
+func total_stars() -> int:
+	var total := 0
+	for n in level_records:
+		total += int(level_records[n].best)
+	return total
+
+
+func _upgrade_info(id: String) -> Dictionary:
+	for u in UPGRADES:
+		if u.id == id:
+			return u
+	return {}
+
+
+func _on_upgrade_button(id: String) -> void:
+	var u := _upgrade_info(id)
+	if owned_upgrades.has(id):
+		if id == "familiar":
+			familiar_on = not familiar_on  # switch the owl on/off
+			familiar_time = 0.0
+	elif total_stars() >= int(u.stars) and score >= int(u.price):
+		score -= int(u.price)
+		owned_upgrades[id] = true
+	else:
+		return
+	_save_game()
+	_update_potion_ui()
+	_update_shop()
+
+
 func _update_shop() -> void:
 	shop_score_label.text = "You have %d points to spend" % score
+	var stars := total_stars()
+	(upgrade_rows["_header"].label as Label).text = \
+		"Star upgrades  -  your stars: %d / %d" % [stars, GameData.LEVELS.size() * 100]
+	for u in UPGRADES:
+		var r: Dictionary = upgrade_rows[u.id]
+		(r.label as Label).text = "%s  (needs %d stars)\n%s" % [u.name, u.stars, u.desc]
+		var b: Button = r.button
+		if owned_upgrades.has(u.id):
+			if u.id == "familiar":
+				b.text = "Owl: ON" if familiar_on else "Owl: OFF"
+				b.disabled = false
+			else:
+				b.text = "Owned"
+				b.disabled = true
+		elif stars < int(u.stars):
+			b.text = "Locked (%d more stars)" % (int(u.stars) - stars)
+			b.disabled = true
+		else:
+			b.text = "Buy: %d points" % u.price
+			b.disabled = score < int(u.price)
 	for kind in shop_rows:
 		var row: Dictionary = shop_rows[kind]
 		var shelf_name := "Wisdom" if kind == PotionArt.WISDOM else "Vision"

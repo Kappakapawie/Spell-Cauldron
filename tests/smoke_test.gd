@@ -134,6 +134,42 @@ func _check_gameplay() -> void:
 	else:
 		print("bought a Wisdom slot for ", price, " points")
 
+	# Owl familiar: solves whole words on easy (visible gaps) and hard (hidden gaps) levels.
+	main.owned_upgrades["familiar"] = true
+	main.familiar_on = true
+	for lvl in [1, 4, 6, 10]:
+		for attempt in 3:
+			main._start_level(lvl)
+			await process_frame
+			var word: String = main.puzzle.word
+			var guard := 0
+			while main._familiar_next_index() >= 0 and guard < 10:
+				main._familiar_place()
+				guard += 1
+			if main._spelling() != word:
+				_fail("owl on level %d spelled %s, expected %s" % [lvl, main._spelling(), word])
+				break
+			var pts_before: int = main.level_points
+			await main._stir()
+			if main.level_points - pts_before != 5:
+				_fail("owl-helped word on level %d gave %d points, expected 5" % [lvl, main.level_points - pts_before])
+	print("owl familiar solved words on levels 1, 4, 6, 10")
+	main.owned_upgrades.erase("familiar")
+
+	# Discount and Lucky cauldron.
+	main._start_level(10)
+	await process_frame
+	var full_cost: int = main._potion_cost()
+	var reward: int = main._potion_reward()
+	main.owned_upgrades["discount"] = true
+	main.owned_upgrades["lucky"] = true
+	if main._potion_cost() != full_cost - 1 or main._potion_reward() != reward + 1:
+		_fail("discount/lucky: cost %d->%d, reward %d->%d" % [full_cost, main._potion_cost(), reward, main._potion_reward()])
+	main._start_level(1)
+	if main._potion_cost() != 1:
+		_fail("discount must never make a drink free")
+	print("discount and lucky cauldron ok")
+
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)
 

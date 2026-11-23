@@ -23,6 +23,13 @@
   - **Shelves:** each shelf starts with 3 slots (empty slots shown faintly). Potions earned beyond
     a full shelf become 10 score points. The *Shelves* menu spends score on extra slots
     (30, 60, 90, ... points), up to 10 per shelf.
+  - **Star upgrades** (in the Shelves menu): unlocked by total stars across all levels (max 1000),
+    then bought with score points.
+    | Stars | Upgrade | Effect | Price |
+    |---|---|---|---|
+    | 200 | Potion discount | Every drink costs 1 potion less (min 1) | 100 |
+    | 500 | Owl familiar | Places one right letter every 10 s (can be switched off; counts as help, -5 on that word) | 150 |
+    | 800 | Lucky cauldron | Every brewed word gives 1 extra potion | 250 |
   - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
   - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.
