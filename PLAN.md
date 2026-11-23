@@ -12,8 +12,13 @@
   then "STIR THE POT!" once every gap is filled. No other text instructions.
 - **Potions (replace free hints):** brewing a word earns potions (1 for short words, up to 4 for long ones),
   randomly *Wisdom* (blue) or *Vision* (pink). They show as flask icons left of their buttons.
-  - *Wisdom* shows what the word means as a soft, floating thought above the cauldron
-    (once paid, it can be reopened free for that word).
+  - *Wisdom* shows what the word means as a soft, floating thought above the cauldron, in snippets:
+    each potion reveals more words (hidden parts show as "…"); once all known, it reopens free.
+  - Easier levels reveal more per potion: full meaning / clearest picture takes 2 potions on
+    levels 1-3, 3 on levels 4-6, 4 on levels 7-10.
+  - **Level stars:** the points earned during a level run are saved as a number in a star under
+    that level's button (best run kept). If every reward potion in the run became points, the run
+    is perfect: the star turns solid gold and the level is *conquered*.
   - You can hold at most 10 of each potion. Every potion earned beyond that becomes 10 score points.
   - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)

@@ -85,6 +85,35 @@ func _check_gameplay() -> void:
 			_fail("level %d: correct answer did not advance (word %s)" % [lvl, word])
 		else:
 			print("level %d ok: %s" % [lvl, word])
+	# Wisdom snippets: partial first, full meaning after all steps.
+	main._start_level(7)
+	await process_frame
+	main.potions = {PotionArt.WISDOM: 10, PotionArt.VISION: 10}
+	main._drink_wisdom()
+	var first: String = main._meaning_snippet()
+	if not first.contains("…"):
+		_fail("first Wisdom potion revealed everything: %s" % first)
+	for i in main._reveal_steps():
+		main.potions[PotionArt.WISDOM] = 10  # level 7 costs 3 per drink
+		main._drink_wisdom()
+	if main._meaning_snippet() != main.puzzle.meaning:
+		_fail("all Wisdom potions did not reveal the full meaning")
+	print("snippet after 1 potion: ", first)
+
+	# A perfect level 1 run (shelves full, nothing spent) conquers the level.
+	main._start_level(1)
+	await process_frame
+	main.potions = {PotionArt.WISDOM: main.POTION_CAP, PotionArt.VISION: main.POTION_CAP}
+	for w in GameData.WORDS_PER_LEVEL:
+		var word: String = main.puzzle.word
+		_solve(main, word, false)
+		await main._stir()
+	var rec: Dictionary = main.level_records.get(1, {})
+	if rec.is_empty() or not rec.conquered or rec.best != main.level_max_points:
+		_fail("perfect level 1 run was not recorded as conquered: %s" % rec)
+	else:
+		print("level 1 conquered with ", rec.best, " points")
+
 	print("RESULT: ", "PASS" if failures == 0 else "%d FAILURES" % failures)
 	quit(1 if failures > 0 else 0)
 

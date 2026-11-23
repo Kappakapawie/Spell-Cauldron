@@ -64,9 +64,14 @@ var picture_tween: Tween
 
 ## Potion stock. Earned by brewing words, spent on the Wisdom / Vision buttons.
 var potions := {PotionArt.WISDOM: 2, PotionArt.VISION: 2}
-var wisdom_used := false   ## Wisdom already drunk for this word (then the meaning is free to reopen)
-var vision_level := 0      ## Vision potions drunk for this word (max VISION_STEPS.size())
-const VISION_STEPS := [0.22, 0.5, 0.78]  ## picture clarity after 1, 2, 3 Vision potions
+var wisdom_level := 0      ## Wisdom potions drunk for this word (max _reveal_steps())
+var wisdom_order: Array = []  ## order in which the meaning's words get revealed
+var vision_level := 0      ## Vision potions drunk for this word (max _reveal_steps())
+
+var level_points := 0      ## points earned (overflow potions) in the current level run
+var level_max_points := 0  ## points you'd get if every reward potion this run became points
+var level_records := {}    ## level -> {"best": int, "conquered": bool}
+var level_stars: Array[LevelStar] = []
 const SAVE_PATH := "user://save.cfg"
 var persist := true        ## false in tests, so they never touch the player's save
 var incoming := {}         ## kind -> reward potions still flying to their shelf
@@ -135,6 +140,10 @@ func _start_level(n: int) -> void:
 	var settings: Dictionary = GameData.LEVELS[level - 1]
 	session_words = _pick_words(settings)
 	word_number = 0
+	level_points = 0
+	level_max_points = 0
+	for e in session_words:
+		level_max_points += _reward_for(String(e[0]).to_upper()) * POINTS_PER_POTION
 	complete_panel.visible = false
 	_start_word()
 
@@ -216,7 +225,8 @@ func _start_word() -> void:
 		picture_tween.kill()
 	picture_alpha = 0.0
 	vision_level = 0
-	wisdom_used = false
+	wisdom_level = 0
+	wisdom_order = []
 	_update_potion_ui()
 
 
@@ -230,7 +240,21 @@ func _next_word() -> void:
 
 func _show_level_complete() -> void:
 	busy = true
-	complete_label.text = "Level %d complete!\nYou brewed all %d words." % [level, GameData.WORDS_PER_LEVEL]
+	# Record this run's points under the level's star. Perfect = every reward potion became points.
+	var rec: Dictionary = level_records.get(level, {"best": 0, "conquered": false})
+	var was_conquered: bool = rec.conquered
+	var perfect := level_points >= level_max_points and level_max_points > 0
+	rec.best = maxi(int(rec.best), level_points)
+	rec.conquered = was_conquered or perfect
+	level_records[level] = rec
+	_save_game()
+	_update_level_stars()
+	var text := "Level %d complete!\nPoints: %d / %d" % [level, level_points, level_max_points]
+	if was_conquered:
+		text += "\nAlready conquered!"
+	elif perfect:
+		text += "\nPerfect - level conquered!"
+	complete_label.text = text
 	next_level_button.visible = level < GameData.LEVELS.size()
 	complete_panel.visible = true
 	sparkles.position = Vector2(640, 360)
@@ -659,7 +683,11 @@ func _potion_cost() -> int:
 
 ## Potions earned for brewing a word: bigger words give more (1-4).
 func _potion_reward() -> int:
-	var n: int = String(puzzle.word).length()
+	return _reward_for(puzzle.word)
+
+
+func _reward_for(word: String) -> int:
+	var n := word.length()
 	if n <= 4:
 		return 1
 	if n <= 6:
@@ -669,21 +697,60 @@ func _potion_reward() -> int:
 	return 4
 
 
+## How many potions it takes to learn everything. Easier levels reveal more per potion.
+func _reveal_steps() -> int:
+	if level <= 3:
+		return 2
+	if level <= 6:
+		return 3
+	return 4
+
+
+## Picture clarity after each Vision potion; the last step is always the clearest (0.85).
+func _vision_clarity(step: int) -> float:
+	return 0.85 * pow(float(step) / _reveal_steps(), 0.8)
+
+
 func _drink_wisdom() -> void:
 	if complete_panel.visible:
 		return
-	if wisdom_used:
-		thought.toggle()  # already paid: reopen for free
+	if wisdom_level >= _reveal_steps():
+		thought.toggle()  # already know it all: reopen for free
 		return
 	if not _pay(PotionArt.WISDOM):
 		return
-	wisdom_used = true
-	thought.show_text(puzzle.meaning)
+	wisdom_level += 1
+	thought.show_text(_meaning_snippet())
 	_update_potion_ui()
 
 
+## The meaning with only some words revealed; hidden stretches become "…".
+## Each Wisdom potion reveals more, longer (more useful) words first.
+func _meaning_snippet() -> String:
+	var words: PackedStringArray = String(puzzle.meaning).split(" ", false)
+	if wisdom_order.size() != words.size():
+		var long: Array = []
+		var short: Array = []
+		for i in words.size():
+			(long if words[i].length() > 3 else short).append(i)
+		long.shuffle()
+		short.shuffle()
+		wisdom_order = long + short
+	var count := ceili(words.size() * float(wisdom_level) / _reveal_steps())
+	var shown := {}
+	for i in count:
+		shown[wisdom_order[i]] = true
+	var parts: Array = []
+	for i in words.size():
+		if shown.has(i):
+			parts.append(words[i])
+		elif parts.is_empty() or parts[-1] != "…":
+			parts.append("…")
+	return " ".join(parts)
+
+
 func _drink_vision() -> void:
-	if complete_panel.visible or vision_level >= VISION_STEPS.size():
+	if complete_panel.visible or vision_level >= _reveal_steps():
 		return
 	if not _pay(PotionArt.VISION):
 		return
@@ -691,7 +758,7 @@ func _drink_vision() -> void:
 	if picture_tween:
 		picture_tween.kill()
 	picture_tween = create_tween()
-	picture_tween.tween_property(self, "picture_alpha", VISION_STEPS[vision_level - 1], 1.5) \
+	picture_tween.tween_property(self, "picture_alpha", _vision_clarity(vision_level), 1.5) \
 		.set_trans(Tween.TRANS_SINE)
 	_update_potion_ui()
 
@@ -715,6 +782,12 @@ func _load_game() -> void:
 	for kind in potions.keys():
 		potions[kind] = int(cfg.get_value("potions", kind, potions[kind]))
 	score = int(cfg.get_value("progress", "score", 0))
+	for n in range(1, GameData.LEVELS.size() + 1):
+		if cfg.has_section_key("levels", "best_%d" % n):
+			level_records[n] = {
+				"best": int(cfg.get_value("levels", "best_%d" % n, 0)),
+				"conquered": bool(cfg.get_value("levels", "conquered_%d" % n, false)),
+			}
 	# Older saves could hold more than the cap: turn the extra into points.
 	for kind in potions.keys():
 		if potions[kind] > POTION_CAP:
@@ -730,6 +803,9 @@ func _save_game() -> void:
 	for kind in potions.keys():
 		cfg.set_value("potions", kind, potions[kind])
 	cfg.set_value("progress", "score", score)
+	for n in level_records:
+		cfg.set_value("levels", "best_%d" % n, level_records[n].best)
+		cfg.set_value("levels", "conquered_%d" % n, level_records[n].conquered)
 	cfg.save(SAVE_PATH)
 
 
@@ -760,6 +836,7 @@ func _award_potions() -> void:
 			# Shelf is full: this potion turns into points.
 			score += POINTS_PER_POTION
 			score_incoming += POINTS_PER_POTION
+			level_points += POINTS_PER_POTION
 			var target := score_label.global_position + score_label.size * 0.5
 			tw.tween_property(fly, "position", target, 0.55)
 			tw.parallel().tween_property(fly, "scale", Vector2.ONE * 0.6, 0.55)
@@ -770,6 +847,16 @@ func _award_potions() -> void:
 				fly.queue_free())
 	_save_game()
 	_update_potion_ui()
+
+
+func _update_level_stars() -> void:
+	for i in level_stars.size():
+		var n := i + 1
+		if level_records.has(n):
+			var rec: Dictionary = level_records[n]
+			level_stars[i].set_record(true, int(rec.best), bool(rec.conquered))
+		else:
+			level_stars[i].set_record(false, 0, false)
 
 
 func _pop_score() -> void:
@@ -786,19 +873,20 @@ func _update_potion_ui() -> void:
 	for kind in shelves:
 		(shelves[kind] as PotionShelf).count = potions[kind] - incoming.get(kind, 0)
 	score_label.text = "Score: %d" % (score - score_incoming)
+	var steps := _reveal_steps()
 	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
-	if wisdom_used:
-		wisdom.text = "Wisdom\n(meaning)"
-		wisdom.disabled = false
+	if wisdom_level >= steps:
+		wisdom.text = "Wisdom\n(all known)"
+		wisdom.disabled = false  # free to reopen the thought
 	else:
-		wisdom.text = "Wisdom\ncosts %d" % cost
+		wisdom.text = "Wisdom %d/%d\ncosts %d" % [wisdom_level, steps, cost]
 		wisdom.disabled = potions[PotionArt.WISDOM] < cost
 	var vision: Button = potion_buttons[PotionArt.VISION]
-	if vision_level >= VISION_STEPS.size():
+	if vision_level >= steps:
 		vision.text = "Vision\n(clearest)"
 		vision.disabled = true
 	else:
-		vision.text = "Vision\ncosts %d" % cost
+		vision.text = "Vision %d/%d\ncosts %d" % [vision_level, steps, cost]
 		vision.disabled = potions[PotionArt.VISION] < cost
 
 
@@ -820,7 +908,7 @@ func _draw() -> void:
 	for x in range(0, 1281, 80):
 		draw_line(Vector2(x, 0), Vector2(x, 600), Color("3e291f"), 3.0)
 	# Window with a moon
-	var win := Rect2(70, 90, 190, 160)
+	var win := Rect2(70, 118, 190, 150)
 	draw_rect(win.grow(10), Color("2c1c14"))
 	draw_rect(win, Color("1d2a4d"))
 	draw_circle(win.position + Vector2(130, 50), 26, Color("fff4c9"))
@@ -1024,13 +1112,24 @@ func _build_ui() -> void:
 	top.add_theme_constant_override("separation", 6)
 	root.add_child(top)
 	var lvl := _label("Difficulty:", 22)
+	lvl.custom_minimum_size = Vector2(0, 46)
+	lvl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lvl.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	top.add_child(lvl)
 	for i in range(1, GameData.LEVELS.size() + 1):
+		var col := VBoxContainer.new()
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_theme_constant_override("separation", 2)
+		top.add_child(col)
 		var b := _button(str(i), Vector2(46, 46))
 		b.toggle_mode = true
 		b.pressed.connect(_start_level.bind(i))
-		top.add_child(b)
+		col.add_child(b)
 		level_buttons.append(b)
+		var star := LevelStar.new()
+		col.add_child(star)
+		level_stars.append(star)
+	_update_level_stars()
 
 	progress_label = _label("", 24)
 	progress_label.position = Vector2(1090, 18)
@@ -1049,7 +1148,7 @@ func _build_ui() -> void:
 	# Meaning hint (Wisdom potion): a floating thought
 	thought = ThoughtCloud.new()
 	root.add_child(thought)
-	thought.setup(Vector2(640, 140))
+	thought.setup(Vector2(640, 168))
 
 	# Action buttons
 	var side := VBoxContainer.new()
