@@ -43,6 +43,7 @@ func _check_puzzles() -> void:
 
 func _check_gameplay() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
+	main.persist = false  # never touch the player's real save
 	root.add_child(main)
 	await process_frame
 	for lvl in [1, 4, 5, 10]:

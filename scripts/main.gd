@@ -67,6 +67,9 @@ var potions := {PotionArt.WISDOM: 2, PotionArt.VISION: 2}
 var wisdom_used := false   ## Wisdom already drunk for this word (then the meaning is free to reopen)
 var vision_level := 0      ## Vision potions drunk for this word (max VISION_STEPS.size())
 const VISION_STEPS := [0.22, 0.5, 0.78]  ## picture clarity after 1, 2, 3 Vision potions
+const SAVE_PATH := "user://save.cfg"
+var persist := true        ## false in tests, so they never touch the player's save
+var incoming := {}         ## kind -> reward potions still flying to their shelf
 var shelves := {}          ## kind -> PotionShelf
 var potion_buttons := {}   ## kind -> Button
 var emoji_font: SystemFont
@@ -107,6 +110,7 @@ func _ready() -> void:
 	engrave_font.base_font = ThemeDB.fallback_font
 	engrave_font.variation_embolden = 0.9
 	engrave_font.spacing_glyph = 4
+	_load_game()
 	_build_ui()
 	_start_level(1)
 
@@ -693,7 +697,28 @@ func _pay(kind: String) -> bool:
 	if potions[kind] < cost:
 		return false
 	potions[kind] -= cost
+	_save_game()
 	return true
+
+
+## Potions are kept between play sessions in the player's save file.
+func _load_game() -> void:
+	if not persist:
+		return
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) != OK:
+		return  # first time playing: keep the starting potions
+	for kind in potions.keys():
+		potions[kind] = int(cfg.get_value("potions", kind, potions[kind]))
+
+
+func _save_game() -> void:
+	if not persist:
+		return
+	var cfg := ConfigFile.new()
+	for kind in potions.keys():
+		cfg.set_value("potions", kind, potions[kind])
+	cfg.save(SAVE_PATH)
 
 
 func _award_potions() -> void:
@@ -706,15 +731,20 @@ func _award_potions() -> void:
 		fly.scale = Vector2.ONE * 1.6
 		add_child(fly)
 		var shelf: PotionShelf = shelves[kind]
+		# Count (and save) the potion right away; the shelf only shows it once it lands.
+		potions[kind] += 1
+		incoming[kind] = incoming.get(kind, 0) + 1
 		var tw := fly.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 		tw.tween_interval(0.25 + i * 0.18)
 		tw.tween_property(fly, "position", fly.position + Vector2(0, -90), 0.3)
-		tw.tween_property(fly, "position", shelf.slot_global_position(potions[kind] + i), 0.55)
+		tw.tween_property(fly, "position", shelf.slot_global_position(potions[kind] - 1), 0.55)
 		tw.parallel().tween_property(fly, "scale", Vector2.ONE, 0.55)
 		tw.tween_callback(func() -> void:
-			potions[kind] += 1
+			incoming[kind] -= 1
 			_update_potion_ui()
 			fly.queue_free())
+	_save_game()
+	_update_potion_ui()
 
 
 func _update_potion_ui() -> void:
@@ -722,7 +752,7 @@ func _update_potion_ui() -> void:
 		return
 	var cost := _potion_cost()
 	for kind in shelves:
-		(shelves[kind] as PotionShelf).count = potions[kind]
+		(shelves[kind] as PotionShelf).count = potions[kind] - incoming.get(kind, 0)
 	var wisdom: Button = potion_buttons[PotionArt.WISDOM]
 	if wisdom_used:
 		wisdom.text = "Wisdom\n(meaning)"

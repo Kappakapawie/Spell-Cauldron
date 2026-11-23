@@ -16,6 +16,7 @@
   - *Vision* makes a blurry picture appear in the brew; each extra one makes it clearer (3 steps).
     The picture turns sharp when the word is brewed. (Placeholder: Windows emoji; replace with art later.)
   - Cost per drink rises with difficulty: 1 (levels 1-3), 2 (4-6), 3 (7-9), 4 (10). Start with 2 of each.
+  - The potion stock is saved between play sessions (`user://save.cfg`).
   - *Where?* (shows a gap position) stays free.
 - **Gaps:** visible empty slots on levels 1–4, hidden on levels 5–10 (you work out where letters go).
 - **Letters:** used up when placed. Duplicates appear when the word needs them (two E's for "tree").
