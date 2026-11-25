@@ -12,4 +12,5 @@ if not defined GODOT (
 	pause
 	exit /b 1
 )
+call "%~dp0tools\prepare.bat" "%GODOT%"
 start "" "%GODOT%" --path "%~dp0."

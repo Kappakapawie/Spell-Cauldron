@@ -52,7 +52,8 @@ Or double-click **Play Spell Cauldron.bat**. **Reset game** on the title screen 
 | `scripts/screen_layout.gd` | The phone version: a wider screen, bigger things to touch |
 | `scripts/potion_icon.gd` | Wisdom and Vision as round icons |
 | `scripts/unlock_flight.gd` | The icon of something unlocked, flying to the Shelves button |
+| `tools/prepare.bat` | Used by the launchers: imports the project on a new computer |
 | `scripts/tutorial_note.gd` | The small messages of the first mission |
-| `tests/smoke_test.gd` | Headless check (about 45 seconds): `godot --headless --fixed-fps 60 --path . --script res://tests/smoke_test.gd` (without `--fixed-fps 60` it plays in real time, 5-8 minutes) |
+| `tests/smoke_test.gd` | Headless check (about 95 seconds): `godot --headless --fixed-fps 60 --path . --script res://tests/smoke_test.gd` (without `--fixed-fps 60` it plays in real time, 5-8 minutes) |
 
 See [PLAN.md](PLAN.md) for the design decisions and the roadmap.
