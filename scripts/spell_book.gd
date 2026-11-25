@@ -193,6 +193,9 @@ func _process(delta: float) -> void:
 			hold_id = ""
 			if game.skill_buy(id):
 				flash[id] = 1.2
+				if game.skill_info(id).can_buy:
+					hold_id = id  # still held: the next rank fills at the same pace
+					hold_t = 0.0
 		elif hold_t >= limit and was_below:
 			# As far as the points reach: it stops here, and stays readable while held.
 			shake_id = hold_id
@@ -322,10 +325,13 @@ func _draw_tree() -> void:
 			ring = Color("d9a441")
 			fill = Color("f7e7b5")
 			icon_alpha = 1.0
-		if info.can_buy:
-			ring = Color("4fae6a").lerp(Color("9be3a3"), 0.5 + 0.5 * sin(t * 3.0))
+		if info.get("open", false):
+			# Unlocked: shown straight away, also before you have the knowledge for it; it pulses once you have.
+			ring = Color("4fae6a")
 			icon_alpha = 1.0
-			canvas.draw_circle(c, NODE_R + 9, Color(0.4, 0.85, 0.5, 0.18))
+			if info.can_buy:
+				ring = ring.lerp(Color("9be3a3"), 0.5 + 0.5 * sin(t * 3.0))
+				canvas.draw_circle(c, NODE_R + 9, Color(0.4, 0.85, 0.5, 0.18))
 		if flash.has(n.id):
 			canvas.draw_circle(c, NODE_R + 16, Color(1.0, 0.85, 0.3, 0.35 * flash[n.id]))
 		if n.id == hover_id:

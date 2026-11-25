@@ -142,11 +142,11 @@ const UPGRADES := [
 	{"id": "vision", "name": "Vision potion", "stars": 0, "base": 0, "growth": 1.0, "max": 1, "spell": "vision",
 		"desc": "Lets you drink Vision potions: they show you pictures of the word in the brew."},
 	{"id": "hourglass", "name": "Enchanted hourglass", "stars": 30, "base": 150, "growth": 1.0, "max": 1, "spell": "hourglass",
-		"desc": "Brew a level before the sand runs out for 1 extra star, however much help you used. If it runs out once, it stays empty for the rest of the book. Your best guessing and best timing are added together."},
+		"desc": "One hourglass for the whole book: brew as many levels as you can before the sand runs out. Each one in time gives 1 extra star, however much help you used. Your best guessing and best timing are added together."},
 	{"id": "more_sand", "name": "Slow sand", "stars": 30, "base": 120, "growth": 1.5, "max": 5, "spell": "slow",
-		"needs": "hourglass", "desc": "The hourglass gives you 25% more time for every level per rank."},
+		"needs": "hourglass", "desc": "The hourglass holds 25% more sand per rank."},
 	{"id": "golden_sand", "name": "Golden sand", "stars": 60, "base": 600, "growth": 1.0, "max": 1, "spell": "immediately",
-		"needs": "hourglass", "desc": "The quicker you brew a level, the more extra stars: up to 5 while the hourglass is almost full, fewer the more sand is gone. They come on top of the hourglass's own star."},
+		"needs": "hourglass", "desc": "The quicker you brew a level, the more extra stars: up to 5 for a quick one, fewer the longer it takes. They come on top of the hourglass's own star."},
 	{"id": "discount", "name": "Potion discount", "stars": 20, "base": 80, "growth": 2.0, "max": 2, "spell": "orchard",
 		"desc": "Every drink costs 1 potion less per rank (never below 1)."},
 	{"id": "sage", "name": "Whispering sage", "stars": 30, "base": 150, "growth": 2.0, "max": 2,
@@ -163,7 +163,7 @@ const UPGRADES := [
 		"needs": "frog", "desc": "Feeding the frog for another theme costs 1 potion less per rank."},
 	{"id": "familiar", "name": "Owl familiar", "stars": 10, "base": 50, "growth": 1.0, "max": 1, "spell": "owl",
 		"desc": "Every 20 seconds the owl points out a letter that is surely in the word. Click the owl to pause it."},
-	{"id": "owl_speed", "name": "Swift wings", "stars": 10, "base": 30, "growth": 1.25, "max": 10,
+	{"id": "owl_speed", "name": "Swift wings", "stars": 10, "base": 45, "growth": 1.25, "max": 10,
 		"needs": "familiar", "desc": "The owl is 1 second quicker per rank."},
 	{"id": "owl_all", "name": "Full moon", "stars": 40, "base": 100, "growth": 1.5, "max": 5, "spell": "moon",
 		"needs": "familiar", "desc": "Whenever the owl helps, there is a chance that it points out ALL the letters the word needs: 2% per rank."},
@@ -189,14 +189,15 @@ const UPGRADES := [
 		"needs": "raccoon", "desc": "The raccoon is 1 second quicker per rank."},
 	{"id": "hallucination", "name": "Hallucination", "stars": 40, "base": 100, "growth": 1.5, "max": 5, "spell": "condense",
 		"desc": "At the start of a word there is a chance of a free Vision, without a potion and without losing stars: 10% per rank."},
-	{"id": "lucky", "name": "Your cauldron", "stars": 80, "base": 150, "growth": 1.7, "max": 3,
+	{"id": "lucky", "name": "Your cauldron", "stars": 80, "base": 225, "growth": 1.7, "max": 3,
 		"desc": "Every brewed word gives 1 extra potion per rank."},
 ]
-## The hourglass spell: points for a level (word) brewed before the sand runs out, help or no help.
+## The hourglass spell: one countdown for the whole book. Every level (word) brewed before the sand runs out
+## gives a point, help or no help. The book's sand is the sum of its words' shares.
 const TIME_POINT := 1.0
-const SAND_BASE := 12.0        ## seconds for any word...
-const SAND_PER_LETTER := 9.0   ## ...more for every missing letter...
-const SAND_HIDDEN := 6.0       ## ...and more when the gaps are hidden
+const SAND_BASE := 6.0         ## seconds for any word...
+const SAND_PER_LETTER := 4.5   ## ...more for every missing letter...
+const SAND_HIDDEN := 3.0       ## ...and more when the gaps are hidden
 const SAND_RANK := 0.25        ## share of that time extra per Slow sand rank
 var sand_timer: SandTimer
 var sand_out: SandOut
@@ -668,10 +669,18 @@ func pet_interval(id: String) -> float:
 	return familiar_interval() if id == "familiar" else cat_interval()
 
 
-## Seconds for the current word.
+## The current word's share of the sand (Golden sand measures how quick it was against this).
 func sand_time() -> float:
 	var seconds: float = SAND_BASE + SAND_PER_LETTER * puzzle.missing.size() + (0.0 if puzzle.gaps_visible else SAND_HIDDEN)
 	return seconds * (1.0 + SAND_RANK * rank_of("more_sand"))
+
+
+## All the sand of the current book: every word's share, by the book's average number of missing letters.
+func book_sand_time() -> float:
+	var book: Dictionary = GameData.LEVELS[level - 1]
+	var missing := (int(book.missing_min) + int(book.missing_max)) / 2.0
+	var seconds: float = SAND_BASE + SAND_PER_LETTER * missing + (0.0 if book.gaps_visible else SAND_HIDDEN)
+	return seconds * level_max() * (1.0 + SAND_RANK * rank_of("more_sand"))
 
 
 ## Was the word brewed before the sand ran out?
@@ -687,6 +696,7 @@ func _run_sand(delta: float) -> void:
 		and not complete_panel.visible and not shop_panel.visible
 	if sand_timer.running:
 		sand_timer.left = maxf(0.0, sand_timer.left - delta)
+		sand_timer.pace_used += delta
 		if sand_timer.left <= 0.0 and not sand_lost:
 			sand_lost = true
 			sand_fails += 1
@@ -1414,6 +1424,7 @@ func _start_level(n: int) -> void:
 	time_points = 0.0
 	sand_lost = false
 	sand_out.stop()
+	sand_timer.start(book_sand_time())  # turned over once; it runs on from word to word
 	new_names = []
 	word_results = []
 	for id in pet_time:
@@ -1492,7 +1503,7 @@ func _start_word() -> void:
 		tiles.append(t)
 		_tween_node(t, t.home_position, ScreenLayout.touch(), t.home_rotation, 0.3)
 
-	sand_timer.start(sand_time())
+	sand_timer.next_word(sand_time())
 	if sand_lost:
 		sand_timer.lose()
 	progress_label.text = "Level %d / %d" % [word_number + 1, level_max()]
@@ -3062,6 +3073,7 @@ func _theme_info(t: String) -> Dictionary:
 		return info
 	info.can_buy = score >= price
 	info.afford = minf(1.0, score / float(price))
+	info.open = true
 	info.hint = ("Hold to learn: %d knowledge" % price) if info.can_buy else ("Needs %d knowledge (you have %d)" % [price, score])
 	return info
 
@@ -3130,7 +3142,7 @@ func book_stats_text() -> String:
 ## Everything the spell book needs to draw and explain one spell.
 func skill_info(id: String) -> Dictionary:
 	var info := {"title": "", "desc": "", "status_text": "", "hint": "",
-		"understood": false, "can_buy": false,
+		"understood": false, "can_buy": false, "open": false,  # open: unlocked, whether or not you have the knowledge for it
 		"afford": 0.0}  # how much of the price you have, 0 to 1 (0 if it can't be bought at all)
 	if id == "themes":
 		info.merge({"title": "Themes", "label": "Themes", "plain": true, "understood": true, "status_text": "%d / %d" % [themes_owned.size(), GameData.THEMES.size()],
@@ -3154,14 +3166,17 @@ func skill_info(id: String) -> Dictionary:
 		info.understood = shelf_slots[kind] > START_SLOTS
 		info.can_buy = not maxed and score >= price
 		info.afford = 0.0 if maxed else minf(1.0, score / float(price))
+		info.open = not maxed
 		info.status_text = "%d / %d slots" % [shelf_slots[kind], MAX_SLOTS]
 		if tutorial < Tutorial.USE:
 			info.can_buy = false
 			info.afford = 0.0
+			info.open = false
 			info.hint = "Locked: learn the frog first"
 		elif rank_of(kind) == 0:
 			info.can_buy = false
 			info.afford = 0.0
+			info.open = false
 			info.hint = "Locked: learn the %s potion first" % label
 		elif maxed:
 			info.hint = "Full size!"
@@ -3186,6 +3201,7 @@ func skill_info(id: String) -> Dictionary:
 		info.can_buy = rank < max_rank and lock == "" and score >= price
 		if rank < max_rank and lock == "":
 			info.afford = 1.0 if price <= score else score / float(price)
+			info.open = true
 		if id in ["owl_speed", "cat_speed", "raven_speed", "chameleon_speed", "raccoon_speed"] and rank > 0:
 			var seconds := pet_interval({"owl_speed": "familiar", "cat_speed": "cat", "raven_speed": "raven", "chameleon_speed": "chameleon", "raccoon_speed": "raccoon"}[id])
 			info.status_text = "%.1f s  (%d/%d)" % [seconds, rank, max_rank]

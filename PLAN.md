@@ -41,9 +41,9 @@
     |---|---|---|---|---|
     | – | Wisdom / Vision shelf | +1 slot | 7 (3→10) | 20, +20 each |
     | 20 | Potion discount | spell ORCHARD first (theme Nature & weather, books 7-13). Drinks cost 1 less (min 1) | 2 | 80, ×2 |
-    | 30 | Enchanted hourglass | spell HOURGLASS first (theme Time & calendar, in every book of it until learned). a level brewed before the sand runs out gives 1 extra star, however much help was used (12 s + 9 s per missing letter + 6 s if gaps are hidden; stands still while stirring, in the spell book or paused). Too late: no extra star, and the hourglass stays empty for the rest of the book | 1 | 150 |
-    | 30 | Slow sand (needs hourglass) | spell SLOW first (theme Time & calendar, any book). 25 % more time for every level | 5 | 120, ×1.5 |
-    | 60 | Golden sand (needs hourglass) | spell IMMEDIATELY first (theme Time & calendar, books 19-29). up to 5 more stars for every level, by the share of sand left when it is stirred (the first 2 s cost nothing; 5, 4, 3, 2, 1, 0; the hourglass shows what you would get now) | 1 | 600 |
+    | 30 | Enchanted hourglass | spell HOURGLASS first (theme Time & calendar, in every book of it until learned). **one countdown for the whole book**: turned over when the book starts, it runs on from word to word; every level brewed before the sand runs out gives 1 extra star, however much help was used. The book's sand: 10 × (6 s + 4.5 s per missing letter + 3 s if gaps are hidden), e.g. 105 s for book 1 (stands still while stirring, in the spell book or paused). Empty: no more extra stars in this run | 1 | 150 |
+    | 30 | Slow sand (needs hourglass) | spell SLOW first (theme Time & calendar, any book). the hourglass holds 25 % more sand | 5 | 120, ×1.5 |
+    | 60 | Golden sand (needs hourglass) | spell IMMEDIATELY first (theme Time & calendar, books 19-29). up to 5 more stars for every level, by how quick it was against its share of the sand (6 s + 4.5 s per missing letter + 3 s if hidden; the first 2 s cost nothing; 5, 4, 3, 2, 1, 0; the hourglass shows what you would get now) | 1 | 600 |
     | 0 | Wisdom potion / Vision potion | lets you drink it. Spell WISDOM / VISION first (in every book of Witchcraft & magic). In play they are round icons like the pets (`scripts/potion_icon.gd`). Its shelf and Whispering sage / Clear sight need it; saves from before have both | 1 | free |
     | 0 | Hungry frog | lets you feed the frog to reroll a book's theme, once per book; learned in the first mission | 1 | free |
     | 20 | Second helping (needs frog) | the frog can be fed once more in every book (1, then 2, then 3 times; on the theme screen and in play together). Only brewing the book to the end gives the meals back | 2 | 70, ×1.8 |
@@ -52,7 +52,7 @@
     | 30 | Whispering sage | full meaning takes 1 Wisdom potion fewer (min 1) | 2 | 150, ×2 |
     | 30 | Clear sight | spell KETTLE first (theme Food & kitchen, books 3 and 5-12). All pictures are shown 1 Vision potion sooner (min 1) | 2 | 150, ×2 |
     | 10 | Owl familiar | every 20 s a letter on the table that is surely needed glows (never placed); costs no score | 1 | 50 |
-    | 10 | Swift wings (needs owl) | the owl is 1 s quicker | 10 (20 s→10 s) | 30, ×1.25 |
+    | 10 | Swift wings (needs owl) | the owl is 1 s quicker | 10 (20 s→10 s) | 45, ×1.25 |
     | 40 | Full moon (needs owl) | spell MOON first (theme Universe, any book). Whenever the owl helps, 2 % chance that it points out all needed letters | 5 (10 %) | 100, ×1.5 |
     | 15 | Cat familiar | every 8 s its paw opens a space where a letter is missing; the space stays until filled, marked with a see-through paw print. Spots between two letters first; at the ends of the word it taps instead of swiping. Nothing to do in books where gaps are shown; costs no score | 1 | 80 |
     | 15 | Quick paws (needs cat) | spell CURIOUS first (theme Body & feelings, books 7-13). The cat is 0.5 s quicker | 10 (8 s→3 s) | 40, ×1.25 |
@@ -64,7 +64,7 @@
     | 55 | Quick colors (needs chameleon) | the chameleon charges 1 s quicker | 8 (10 s→2 s) | 60, ×1.3 |
     | 70 | Raccoon | every 20 s it steals a wrong letter from the table (never one you placed); costs no score | 1 | 220 |
     | 70 | Sneaky paws (needs raccoon) | the raccoon is 1 s quicker | 10 (20 s→10 s) | 60, ×1.25 |
-    | 80 | Your cauldron (the middle of the tree; id `lucky`) | +1 potion per brewed word | 3 | 150, ×1.7 |
+    | 80 | Your cauldron (the middle of the tree; id `lucky`) | +1 potion per brewed word | 3 | 225, ×1.7 |
     | 40 | Hallucination (at the Vision shelf) | spell CONDENSE first (theme Alchemy, books 9 and 12-19). 10 % more chance of one free Vision at the start of a word: no potion, no lost stars | 5 (10→50 %) | 100, ×1.5 |
   - **Something new unlocked** (`scripts/unlock_flight.gd`): when a spell can be learned for the first time, or a pet's name was spelled, its icon pops
     up over the cauldron and flies into the Shelves button (after a book: into the picker's Spell book button).
@@ -176,7 +176,8 @@ ones after it. Finished levels keep their points. It costs no score, but help al
 - **Shelves = spell book:** a leather book with a skill tree of spell medallions you can drag around.
   Everything radiates from the cauldron in the middle: animals above it (upgrades further out), potions and hourglass below; the themes on the right.
   Hover a spell to read it (in a strange tongue until learned; cost and requirements stay plain),
-  hold the mouse on it to learn it: a gold ring fills and the words decipher.
+  hold the mouse on it to learn it: a gold ring fills and the words decipher. Keep holding and the next rank fills at the same pace, until it is full or the knowledge runs out.
+  A spell shows as open (green ring, bright icon) as soon as it is unlocked, also before you have the knowledge; it pulses once you can pay.
   With too little knowledge the ring and the words stop part-way: 200 of 400 deciphers half.
   Spells that still need stars (or another spell first) only shake.
 

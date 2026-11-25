@@ -1,9 +1,9 @@
 class_name SandTimer
 extends Control
 
-## The enchanted hourglass at the top of the screen. Its sand runs out while you think;
-## a level brewed before it is empty gives 1 extra star. With Golden sand also up to 5 more: the more sand
-## is left, the more.
+## The enchanted hourglass at the top of the screen. It is turned over once per book and runs on from word to word:
+## every level brewed before it is empty gives 1 extra star. With Golden sand also up to 5 more: the quicker
+## the word was brewed against its share of the sand, the more.
 
 const MIDDLE := Vector2(60, 54)
 const BULB := 38.0        ## height of one half of the glass
@@ -19,6 +19,8 @@ var running := false      ## the sand is falling now (not while stirring or paus
 var golden := false       ## Golden sand is learned
 var bare := false         ## only the glass, without the text below it
 var won := false          ## the level was brewed in time
+var pace_total := 1.0     ## the current word's share of the sand
+var pace_used := 0.0      ## seconds spent on the current word
 var _pop := 0.0
 var _turn := 0.0          ## 1 to 0 while it is being turned over for a new word
 var _area := 0.0          ## of one half of the glass
@@ -27,16 +29,24 @@ var _area := 0.0          ## of one half of the glass
 func _init() -> void:
 	size = Vector2(120, 130)
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	tooltip_text = "Brew this level before the sand runs out\nfor 1 extra star. Once it runs out,\nit stays empty for the rest of these recipes."
+	tooltip_text = "One hourglass for the whole book: brew as many levels\nas you can before the sand runs out.\nEach one in time gives 1 extra star."
 	for i in SLICES:
 		_area += _width((i + 0.5) / SLICES)
 
 
+## A new book: turned over, full.
 func start(seconds: float) -> void:
 	total = seconds
 	left = seconds
 	won = false
 	_turn = 1.0
+
+
+## A new word: the sand runs on; only Golden sand's measure starts again.
+func next_word(share: float) -> void:
+	pace_total = share
+	pace_used = 0.0
+	won = false
 
 
 ## It ran out earlier in this book: it stays empty.
@@ -49,7 +59,7 @@ func lose() -> void:
 func bonus() -> int:
 	if not golden or left <= 0.0:
 		return 0
-	return roundi(BONUS * clampf(left / maxf(1.0, total - GRACE), 0.0, 1.0))
+	return roundi(BONUS * clampf(1.0 - maxf(0.0, pace_used - GRACE) / maxf(1.0, pace_total - GRACE), 0.0, 1.0))
 
 
 func win() -> void:

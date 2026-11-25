@@ -475,7 +475,7 @@ func _check_gameplay() -> void:
 	for n in main.SKILL_TREE:
 		if n.id == "lucky":
 			_fail("Lucky cauldron still has a spell of its own")
-	if not main.skill_buy("root") or main.rank_of("lucky") != 1 or main.score != 850:
+	if not main.skill_buy("root") or main.rank_of("lucky") != 1 or main.score != 775:
 		_fail("improving the cauldron in the spell book failed")
 	if not main.skill_buy("vision_shelf") or main.shelf_slots[PotionArt.VISION] != main.START_SLOTS + 1:
 		_fail("learning a Vision shelf slot in the spell book failed")
@@ -1271,7 +1271,7 @@ func _check_pocket_frog(main: Node) -> void:
 	print("little frog ok")
 
 
-## The hourglass: in time = double, too late = as always; perfect still means no help.
+## The hourglass: one countdown for the whole book. In time = double, too late = as always; perfect still means no help.
 func _check_hourglass(main: Node) -> void:
 	main.owned_upgrades = {}
 	main.level_records = {}
@@ -1282,8 +1282,8 @@ func _check_hourglass(main: Node) -> void:
 	main.owned_upgrades = {"hourglass": 1}
 	main._start_level(1)
 	await create_timer(0.5).timeout
-	if not main.sand_timer.visible or main.sand_timer.total != 21.0 or main.sand_timer.left > 20.8 or main.sand_timer.left < 19.5:
-		_fail("book 1 should give 21 s: %.1f of %.1f" % [main.sand_timer.left, main.sand_timer.total])
+	if not main.sand_timer.visible or main.sand_timer.total != 105.0 or main.sand_timer.left > 104.8 or main.sand_timer.left < 103.5:
+		_fail("book 1 should give 105 s: %.1f of %.1f" % [main.sand_timer.left, main.sand_timer.total])
 	# No sand runs in the spell book, while paused or while stirring.
 	var before: float = main.sand_timer.left
 	main._open_shop()
@@ -1302,9 +1302,12 @@ func _check_hourglass(main: Node) -> void:
 	_solve(main, main.puzzle.word, false)
 	main.sand_timer.left = 0.4
 	await main._stir()
-	if main.plain_points != 1.0 or main.time_points != 1.0 or not main.word_results[0].fast or main.sand_timer.left < 20.0:
+	if main.plain_points != 1.0 or main.time_points != 1.0 or not main.word_results[0].fast:
 		_fail("a word in time should give 1 + 1: %.2f, %s" % [main.plain_points, main.word_results])
+	if main.sand_timer.left > 0.4 or main.sand_timer.total != 105.0:
+		_fail("the hourglass was turned over for the next word: %.1f" % main.sand_timer.left)
 	# In time with help: the whole point for time.
+	main.sand_timer.left = 50.0
 	main.potions = {PotionArt.WISDOM: 3, PotionArt.VISION: 3}
 	main._drink_vision()
 	_solve(main, main.puzzle.word, false)
@@ -1328,7 +1331,7 @@ func _check_hourglass(main: Node) -> void:
 		_fail("that run should be 9.5 + 2, not mastered: %s" % rec)
 	main._start_level(1)
 	await process_frame
-	if main.sand_timer.left < 20.0 or not main.in_time():
+	if main.sand_timer.left < 100.0 or not main.in_time():
 		_fail("the hourglass is still empty in the next run")
 	# The best of each counts, from different runs: first 10 by guessing without the hourglass...
 	main.level_records = {}
@@ -1434,7 +1437,7 @@ func _check_hourglass(main: Node) -> void:
 	for i in 7:
 		main.skill_buy("more_sand")
 	main._start_level(1)
-	if main.rank_of("more_sand") != 5 or absf(main.sand_timer.total - 21.0 * 2.25) > 0.01:
+	if main.rank_of("more_sand") != 5 or absf(main.sand_timer.total - 105.0 * 2.25) > 0.01:
 		_fail("Slow sand rank %d gives %.1f s" % [main.rank_of("more_sand"), main.sand_timer.total])
 	main.score = 0
 	main.owned_upgrades = {"hourglass": 1}
@@ -1447,8 +1450,8 @@ func _check_hourglass(main: Node) -> void:
 		var down := glass._level(share, false)
 		if up < -0.001 or up > 1.001 or down < -0.001 or down > 1.001 or absf(up - glass._level(1.0 - share, false)) > 0.02:
 			_fail("the sand does not add up at %.1f: %.2f above, %.2f below" % [share, up, down])
-	# Harder words get more sand.
-	for pair in [[2, 27.0], [4, 30.0], [6, 36.0], [16, 48.0], [19, 54.0], [20, 57.0], [29, 63.0]]:
+	# Harder books get more sand: (6 s + 4.5 s per missing letter + 3 s when hidden) for each of the 10 words.
+	for pair in [[2, 135.0], [4, 150.0], [6, 180.0], [16, 240.0], [19, 270.0], [20, 285.0], [29, 315.0]]:
 		main._start_level(pair[0])
 		if main.sand_timer.total != pair[1]:
 			_fail("book %d gives %.0f s, expected %.0f" % [pair[0], main.sand_timer.total, pair[1]])
@@ -1458,7 +1461,7 @@ func _check_hourglass(main: Node) -> void:
 	print("hourglass ok")
 
 
-## Golden sand: up to 5 stars more for a level, by the sand that is left.
+## Golden sand: up to 5 stars more for a level, by how quick it was against its share of the sand.
 func _check_golden_sand(main: Node) -> void:
 	main.level_records = {1: {"best": 59.0, "conquered": true}}
 	main.score = 100000
@@ -1488,24 +1491,29 @@ func _check_golden_sand(main: Node) -> void:
 	for n in [1, 29]:
 		main._start_level(n)
 		last = 5
-		for tenth in range(0, int(glass.total * 10.0) + 1):
-			glass.left = glass.total - tenth * 0.1
+		for tenth in range(0, int(glass.pace_total * 10.0) + 1):
+			glass.pace_used = tenth * 0.1
 			if tenth <= 20 and glass.bonus() != 5:
-				_fail("%.1f s of %.0f gone: %d stars" % [tenth * 0.1, glass.total, glass.bonus()])
+				_fail("%.1f s of %.1f used: %d stars" % [tenth * 0.1, glass.pace_total, glass.bonus()])
 			if glass.bonus() > last or glass.bonus() < last - 1:
 				_fail("the star bonus jumps from %d to %d" % [last, glass.bonus()])
 			last = glass.bonus()
 		if last != 0:
-			_fail("an empty hourglass gives %d stars" % last)
+			_fail("a word that took its whole share gives %d stars" % last)
+		glass.pace_used = 0.0
+		glass.left = 0.0
+		if glass.bonus() != 0:
+			_fail("an empty hourglass gives %d stars" % glass.bonus())
 	# Brewed: 1 + 1 + the bonus, also in the list at the end.
 	main._start_level(1)
 	main.word_results = []
 	_solve(main, main.puzzle.word, false)
 	for wanted in [5, 3, 0]:
 		var before: float = main.time_points
-		glass.left = 1.0 + (glass.total - 2.0) * wanted / 5.0 - 0.8
+		glass.left = glass.total
+		glass.pace_used = 2.0 + (glass.pace_total - 2.0) * (1.0 - wanted / 5.0) + 0.1
 		if glass.bonus() != wanted:
-			_fail("%.1f s left: %d stars, expected %d" % [glass.left, glass.bonus(), wanted])
+			_fail("%.1f s used: %d stars, expected %d" % [glass.pace_used, glass.bonus(), wanted])
 		main._brew_success()
 		if main.time_points != before + 1.0 + wanted or main.word_results[-1].time != 1.0 + wanted:
 			_fail("a level should give 1 + %d for time: %s" % [wanted, main.word_results[-1]])
@@ -2887,6 +2895,23 @@ func _check_partial_reveal(main: Node, book: SpellBook) -> void:
 		_fail("a spell locked by stars could be deciphered")
 	_press_spell(book, "sage", false)
 	main.level_records = records
+	# Held on: one rank after the other, at the same pace, until it is full.
+	main.owned_upgrades = {}
+	main.score = 100000
+	_press_spell(book, "sage", true)
+	await create_timer(SpellBook.HOLD_TIME + 0.3).timeout
+	if main.rank_of("sage") != 1:
+		_fail("holding did not learn the first rank")
+	await create_timer(SpellBook.HOLD_TIME).timeout
+	if main.rank_of("sage") != 2 or book.hold_id != "":
+		_fail("holding on did not learn the next rank: rank %d" % main.rank_of("sage"))
+	_press_spell(book, "sage", false)
+	# Unlocked shows at once, also without the knowledge to learn it.
+	main.owned_upgrades = {}
+	main.score = 0
+	if not main.skill_info("sage").open or main.skill_info("sage").can_buy:
+		_fail("an unlocked spell does not show as open without knowledge: %s" % main.skill_info("sage"))
+	main.score = 100000  # as before these checks
 	print("partial reveal ok")
 
 
