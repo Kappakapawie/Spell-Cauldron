@@ -7,7 +7,7 @@ how the game works, and keep it up to date:** it is the record of where work sto
 ## On a new computer
 1. `git clone https://github.com/Kappakapawie/Spell-Cauldron.git`
 2. Put Godot 4.7.2 (standard version, Windows: `Godot_v4.7.2-stable_win64.exe` **and** `..._console.exe`) in the folder **above** the project
-   (or in it). Godot itself is not in git. The launchers also find `godot.exe` from winget or on the PATH.
+   (or in it). Godot itself is not in git. The launchers also find `godot.exe` from winget or on the PATH, and without Godot they use SummerEngine (Godot with AI tools) from the same folders, its install folder or the PATH (`tools/find_godot.bat`).
 3. Double-click `Play Spell Cauldron.bat`. The launchers import the project by themselves when needed (`tools/prepare.bat`).
 
 Without the launchers, import once after cloning, and again after pulling or adding a script with a `class_name` or a picture.
