@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spell Cauldron icons</title>
+<style>
+  :root { --wood:#3b271e; --plank:#4b3226; --paper:#f6e8c4; --paper2:#fff5da; --ink:#4a2c17; --soft:#8a5a1a; --gold:#ffd45c; --line:#d9bf86; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--wood); color:#fff3d6; font:16px/1.4 "Segoe UI", system-ui, sans-serif; }
+  .emo { font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; line-height:1; }
+  header { padding:28px 24px 12px; }
+  h1 { margin:0; font-size:30px; }
+  header p { margin:6px 0 0; color:#e8c27a; max-width:70ch; }
+  .bar { position:sticky; top:0; z-index:2; background:var(--wood); padding:12px 24px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; border-bottom:2px solid #6b4226; }
+  .bar button, .bar input { font:inherit; border-radius:8px; border:2px solid #c99a5b; padding:7px 14px; }
+  .bar button { background:#6b4226; color:#fff3d6; cursor:pointer; }
+  .bar button[aria-pressed=true] { background:var(--gold); color:var(--ink); border-color:#fff0b0; font-weight:600; }
+  .bar input { background:var(--paper2); color:var(--ink); flex:1 1 220px; max-width:340px; }
+  .bar button:focus-visible, .bar input:focus-visible, nav a:focus-visible { outline:3px solid var(--gold); outline-offset:2px; }
+  #count { color:#e8c27a; }
+  nav { padding:14px 24px 0; display:flex; flex-wrap:wrap; gap:6px 14px; }
+  nav a { color:#ffe9b0; text-decoration:none; white-space:nowrap; }
+  nav a:hover { text-decoration:underline; }
+  main { padding:8px 24px 60px; }
+  section { margin-top:26px; scroll-margin-top:70px; }
+  h2 { margin:0 0 10px; font-size:21px; display:flex; gap:10px; align-items:center; }
+  h2 small { font-weight:400; color:#e8c27a; font-size:15px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; }
+  .card { background:var(--paper); color:var(--ink); border-radius:10px; padding:10px 6px 8px; text-align:center; overflow-wrap:anywhere; }
+  .card .emo { font-size:28px; display:block; margin-bottom:6px; line-height:1.2; letter-spacing:1px; }
+  .emo img { width:1.25em; height:1.25em; vertical-align:-0.25em; }
+  .card b { font-weight:600; font-size:15px; }
+  .wide { grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); }
+  .row { background:var(--paper); color:var(--ink); border-radius:10px; padding:10px 12px; display:flex; gap:12px; align-items:flex-start; }
+  .row .emo { font-size:34px; flex:none; }
+  .row em { font-style:normal; color:var(--soft); font-size:13px; display:block; }
+  .none { color:#e8c27a; padding:30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Spell Cauldron icons</h1>
+  <p>Every word with the pictures Vision shows, in order. Point at a word to read its clue. “Same first picture” groups words that start with the same one.</p>
+</header>
+<div class="bar">
+  <button data-view="theme" aria-pressed="true">By theme</button>
+  <button data-view="icon" aria-pressed="false">By icon</button>
+  <button data-view="shared" aria-pressed="false">Same first picture</button>
+  <input id="q" type="search" placeholder="Find a word" aria-label="Find a word">
+  <span id="count"></span>
+</div>
+<nav id="nav"></nav>
+<main id="main"></main>
+<script>
+/*DATA*/
+const main = document.getElementById("main"), nav = document.getElementById("nav"), q = document.getElementById("q"), count = document.getElementById("count");
+let view = "theme";
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+// Windows needs the variation selector to show the older symbols in colour.
+// Emoji need the variation selector to show in colour; "@mole" is one of the game's own drawings.
+const draw1 = x => {
+  if (x[0] === "@") { const i = el("img"); i.alt = x.slice(1); i.src = "data:image/svg+xml," + encodeURIComponent(ART[x.slice(1)]); return i; }
+  return document.createTextNode(/[0-9½]/.test(x) ? x : x + String.fromCharCode(65039));
+};
+const icons = s => { const e = el("span", "emo"); s.split(" ").forEach(x => e.append(draw1(x))); return e; };
+
+function card(icon, word, clue) {
+  const c = el("div", "card");
+  c.append(icons(icon), el("b", "", word));
+  if (clue) c.title = clue;
+  return c;
+}
+function section(title, icon, n, id) {
+  const s = el("section"); s.id = id;
+  const h = el("h2");
+  if (icon) h.append(icons(icon));
+  h.append(document.createTextNode(title));
+  if (n !== "") h.append(el("small", "", n));
+  s.append(h); main.append(s);
+  if (id) { const a = el("a", "", title); a.href = "#" + id; nav.append(a); }
+  return s;
+}
+function draw() {
+  const find = q.value.trim().toLowerCase();
+  main.replaceChildren(); nav.replaceChildren();
+  let words = 0, used = new Set();
+  if (view === "theme") {
+    if (!find) {
+      let s = section("Themes", "", "", "themes"), g = el("div", "grid"); s.append(g);
+      THEMES.forEach(t => g.append(card(t.icon, t.name)));
+      s = section("Spells in the book", "", "", "spells"); g = el("div", "grid"); s.append(g);
+      SPELLS.forEach(p => g.append(card(p[0], p[1])));
+    }
+    THEMES.forEach((t, i) => {
+      const hit = t.words.filter(w => w[0].includes(find));
+      if (!hit.length) return;
+      const s = section(t.name, t.icon, hit.length + " words", "t" + i), g = el("div", "grid"); s.append(g);
+      hit.forEach(w => { g.append(card(w[2], w[0], w[1])); w[2].split(" ").forEach(p => used.add(p)); words++; });
+    });
+  } else {
+    const by = new Map();
+    THEMES.forEach(t => t.words.forEach(w => {
+      const all = w[2].split(" ");
+      (view === "shared" ? all.slice(0, 1) : all).forEach(p => {
+        if (!by.has(p)) by.set(p, []);
+        by.get(p).push([w[0], t.name, w[1]]);
+      });
+    }));
+    let list = [...by].filter(([, ws]) => !find || ws.some(w => w[0].includes(find)));
+    list.sort((a, b) => view === "shared" ? b[1].length - a[1].length : a[1][0][0].localeCompare(b[1][0][0]));
+    if (view === "shared") list = list.filter(x => x[1].length > 4);
+    const g = el("div", "grid wide"); main.append(g); g.style.marginTop = "24px";
+    list.forEach(([icon, ws]) => {
+      const r = el("div", "row"), d = el("div");
+      r.append(icons(icon), d);
+      d.append(el("em", "", ws.length === 1 ? ws[0][1] : ws.length + " words"));
+      ws.forEach((w, i) => { const b = el("span", "", w[0] + (i < ws.length - 1 ? ", " : "")); b.title = w[1] + ": " + w[2]; d.append(b); });
+      g.append(r); used.add(icon); words += ws.length;
+    });
+  }
+  if (!words) main.append(el("p", "none", "No word like that in the game."));
+  count.textContent = (view === "theme" ? words + " words, " : "") + used.size + " different pictures";
+}
+document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
+  view = b.dataset.view;
+  document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  draw(); scrollTo(0, 0);
+});
+q.oninput = draw;
+draw();
+</script>
+</body>
+</html>

@@ -11,22 +11,24 @@ static var _dictionary: Array[String] = []
 
 
 ## entry = [word, meaning]. Returns:
-## {word, meaning, missing: Array[int] (sorted), tiles: Array[String], gaps_visible}
+## {word, meaning, pictures, missing: Array[int] (sorted), tiles: Array[String], gaps_visible}
 static func make(entry: Array, settings: Dictionary) -> Dictionary:
 	var word: String = String(entry[0]).to_upper()
 	var n := word.length()
 	var gaps_visible: bool = settings.gaps_visible
-	var k := clampi(randi_range(settings.missing_min, settings.missing_max), 1, n - 1)
+	var k := clampi(randi_range(settings.missing_min, settings.missing_max), 1, GameData.most_missing(n))
 
 	# Pick which letters to take out. Re-roll if the correct letters alone
 	# could also spell some other real word.
 	var missing: Array = []
+	var rivals: Array = []
 	for _attempt in 20:
 		var order: Array = range(n)
 		order.shuffle()
 		missing = order.slice(0, k)
 		missing.sort()
-		if not _allows_other_word(word, missing, _letters_at(word, missing), gaps_visible):
+		rivals = _rival_needs(word, missing, gaps_visible, k + int(settings.decoys))
+		if not _allows_any(rivals, _letters_at(word, missing)):
 			break
 
 	var tiles: Array = _letters_at(word, missing)
@@ -39,7 +41,7 @@ static func make(entry: Array, settings: Dictionary) -> Dictionary:
 		if c in tiles:
 			continue  # keep decoys different from each other and from the right letters
 		tiles.append(c)
-		if _allows_other_word(word, missing, tiles, gaps_visible):
+		if _allows_any(rivals, tiles):
 			tiles.pop_back()
 		else:
 			added += 1
@@ -48,7 +50,7 @@ static func make(entry: Array, settings: Dictionary) -> Dictionary:
 	return {
 		"word": word,
 		"meaning": entry[1],
-		"picture": entry[2] if entry.size() > 2 else "",
+		"pictures": GameData.pictures(entry),
 		"missing": missing,
 		"tiles": tiles,
 		"gaps_visible": gaps_visible,
@@ -62,13 +64,14 @@ static func _letters_at(word: String, indices: Array) -> Array:
 	return out
 
 
-## Could the player build a real word other than `word` with these tiles?
-static func _allows_other_word(word: String, missing: Array, tiles: Array, gaps_visible: bool) -> bool:
+## Every other real word that fits around the fixed letters, as the letters it would need.
+## Searching the whole dictionary is slow, so it is done once per puzzle.
+static func _rival_needs(word: String, missing: Array, gaps_visible: bool, most: int) -> Array:
 	var fixed := ""
 	for i in word.length():
 		if not (i in missing):
 			fixed += word[i]
-
+	var out: Array = []
 	for w in dictionary():
 		if w == word:
 			continue
@@ -84,11 +87,11 @@ static func _allows_other_word(word: String, missing: Array, tiles: Array, gaps_
 				elif w[i] != word[i]:
 					ok = false
 					break
-			if ok and _is_submultiset(need, tiles):
-				return true
+			if ok:
+				out.append(need)
 		else:
 			# Hidden gaps: letters can be slotted in anywhere between the fixed ones.
-			if w.length() <= fixed.length() or w.length() > fixed.length() + tiles.size():
+			if w.length() <= fixed.length() or w.length() > fixed.length() + most:
 				continue
 			if not _is_subsequence(fixed, w):
 				continue
@@ -97,8 +100,15 @@ static func _allows_other_word(word: String, missing: Array, tiles: Array, gaps_
 				rest.append(ch)
 			for ch in fixed:
 				rest.erase(ch)
-			if _is_submultiset(rest, tiles):
-				return true
+			out.append(rest)
+	return out
+
+
+## Could the player build one of those words with these tiles?
+static func _allows_any(needs: Array, tiles: Array) -> bool:
+	for need in needs:
+		if _is_submultiset(need, tiles):
+			return true
 	return false
 
 
@@ -125,6 +135,9 @@ static func dictionary() -> Array[String]:
 		var seen := {}
 		for e in GameData.all_words():
 			seen[String(e[0]).to_upper()] = true
+		for theme in ParkedThemes.THEMES:
+			for e in ParkedThemes.THEMES[theme]:
+				seen[String(e[0]).to_upper()] = true
 		var raw := GameData.CHECK_WORDS.replace("\n", " ").replace("\t", " ")
 		for w in raw.split(" ", false):
 			seen[w.to_upper()] = true
