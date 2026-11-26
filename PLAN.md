@@ -113,6 +113,8 @@
     each number of missing letters starts with the gaps shown, twice from 2 letters on, then hidden), but it is always **mixed** (a new random theme for every
     word, never the same twice in a row) and the themes are **secret**: the sign says "Secret theme", there is no frog screen and the little
     frog is gone. The end screen tells each word's theme beside it. Their stars count like any others.
+    **Locked until you have every theme** (`mystery_open()`): before that they hang on the shelf in chains with a padlock, can't be opened,
+    and the page says "Locked: learn every theme in the spell book first (7 / 11)". Book 29's *Next recipes* only leads on when they are open.
 - **Pause** (*Menu* button or Esc): everything stands still. Leaving a book is only possible from here,
   so a stray click can't lose a run.
 - **Stars** are always shown as the star symbol with the number in it (`LevelStar`): a book's best, all stars together, what a spell needs.

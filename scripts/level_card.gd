@@ -13,6 +13,8 @@ const GILT := Color("e3b95c")
 var number := 1
 var suggested := false  ## the next book to try glows
 var mystery := false    ## page 2: the theme is a secret
+var locked := false     ## a mystery book before you have every theme: chained shut
+var info := ""          ## what the book asks of you (its tooltip, without the lock)
 var star: LevelStar
 var _cover := Color.WHITE
 var _lines: Array[String] = []
@@ -40,7 +42,8 @@ func _init(p_number: int = 1) -> void:
 	]
 	if mystery:
 		_lines.append("a secret theme for every word")
-	tooltip_text = "%s\n%s" % [GameData.book_title(number), "\n".join(_lines)]
+	info = "%s\n%s" % [GameData.book_title(number), "\n".join(_lines)]
+	tooltip_text = info
 	star = LevelStar.new()
 	star.show_empty = true
 	star.radius = 17.0
@@ -60,7 +63,7 @@ func _process(_delta: float) -> void:
 
 func _draw() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
-	var hover := is_hovered()
+	var hover := is_hovered() and not locked
 	var book := Rect2(0, 0, BOOK_WIDTH, HEIGHTS[(number * 2) % HEIGHTS.size()])
 	book.position = Vector2(6, PLANK_Y - book.size.y)
 	var c := book.get_center()
@@ -70,7 +73,9 @@ func _draw() -> void:
 			draw_circle(c, 38.0 + i * 6.0, Color(1.0, 0.85, 0.35, 0.05 + 0.04 * pulse))
 	if hover:
 		book.position.y -= 5.0  # the book lifts off the shelf a little
-	_draw_book(book, _cover.lightened(0.12) if hover else _cover)
+	_draw_book(book, _cover.lightened(0.12) if hover else (_cover.darkened(0.35) if locked else _cover))
+	if locked:
+		_draw_chain(book)
 	var font := ThemeDB.fallback_font
 	var fs := 24
 	var mid := book.position + Vector2(31.0, book.size.y * 0.37)  # middle of the front cover
@@ -110,6 +115,19 @@ func _draw_book(r: Rect2, cover: Color) -> void:
 		draw_string(font, Vector2(frame.get_center().x - 20, r.end.y - 9), "?", HORIZONTAL_ALIGNMENT_CENTER, 40, 22, GILT)
 	else:
 		PotionArt.draw_flask(self, Vector2(frame.get_center().x, r.end.y - 16), 0.8, Color.from_hsv(cover.h, 0.5, 0.85))
+
+
+## A locked book: a chain across the cover and a small padlock on it.
+func _draw_chain(r: Rect2) -> void:
+	var y := r.position.y + r.size.y * 0.55
+	var steel := Color("9aa3ad")
+	for i in 6:
+		var x := r.position.x - 2.0 + i * (r.size.x + 4.0) / 5.0
+		draw_arc(Vector2(x, y), 4.0, 0.0, TAU, 12, steel, 2.0, true)
+	var lock := r.get_center() + Vector2(-1, r.size.y * 0.05)
+	draw_arc(lock + Vector2(0, -6), 5.5, PI, TAU, 12, Color("c9a54a"), 2.5, true)
+	_rounded(Rect2(lock + Vector2(-8, -6), Vector2(16, 13)), Color("c9a54a"), 3)
+	draw_circle(lock + Vector2(0, 0), 1.8, Color("4a3418"))
 
 
 func _rounded(r: Rect2, color: Color, radius: int) -> void:

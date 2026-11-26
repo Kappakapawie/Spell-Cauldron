@@ -1635,6 +1635,26 @@ func _check_mystery(main: Node) -> void:
 	if GameData.book_title(30) != "Mystery recipes 1" or GameData.book_title(3) != "Brew recipes 3":
 		_fail("book titles: %s, %s" % [GameData.book_title(30), GameData.book_title(3)])
 	main.owned_upgrades = {"frog": 1}
+	# Locked until you have every theme.
+	var owned: Array = main.themes_owned.duplicate()
+	main.themes_owned = ["Animals", "Witchcraft & magic"]
+	main._show_screen(main.Screen.LEVELS)
+	main.picker.show_page(1)
+	var card: LevelCard = main.picker.cards[31]
+	if not card.locked or not card.disabled or card.suggested or main.picker.cards[0].locked or not main.picker.info_label.text.contains("2 / %d" % GameData.THEMES.size()):
+		_fail("the mystery books are not locked: %s" % main.picker.info_label.text)
+	main._open_book(32)
+	await process_frame
+	if main.hud.visible or main.level == 32:
+		_fail("a locked mystery book could be opened")
+	main.level = 29
+	if main.mystery_open():
+		_fail("the mystery books are open with 2 themes")
+	main.themes_owned = GameData.THEMES.keys()
+	main._show_screen(main.Screen.LEVELS)
+	if card.locked or card.disabled or main.picker.info_label.text.contains("Locked"):
+		_fail("the mystery books did not open with every theme")
+	main.picker.show_page(0)
 	main._open_book(32)
 	await process_frame
 	if main.frog.visible or not main.hud.visible or main.level != 32 or main.puzzle.is_empty():
@@ -1671,6 +1691,7 @@ func _check_mystery(main: Node) -> void:
 	main._show_screen(main.Screen.LEVELS)
 	main.level_records.erase(32)
 	main.owned_upgrades = {}
+	main.themes_owned = owned
 	main.picker.show_page(0)
 	print("mystery books ok")
 

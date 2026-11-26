@@ -1121,6 +1121,8 @@ func _open_book(n: int) -> void:
 		picker.show_book(1)
 		_start_book(FIRST_THEME)
 		return
+	if GameData.is_mystery(n) and not mystery_open():
+		return  # the mystery books open once you have every theme
 	level = n
 	if _is_mixed():
 		# Every word has its own random theme: nothing to pick, the book starts at once.
@@ -1586,7 +1588,7 @@ func _show_level_complete() -> void:
 		"best_before": best_before,
 		"perfect": perfect,
 		"was_conquered": was_conquered,
-		"has_next": level < GameData.book_count(),
+		"has_next": level < GameData.book_count() and (not GameData.is_mystery(level + 1) or mystery_open()),
 		"hourglass": rank_of("hourglass") > 0,
 		"lost": sand_lost,
 		"secret": _is_mystery(),  # a mystery book tells its themes at the end, beside each word
@@ -2467,7 +2469,16 @@ func _tidy(v: float) -> float:
 
 
 func _update_level_stars() -> void:
-	picker.refresh(level_records, total_stars())
+	picker.refresh(level_records, total_stars(), _themes_had())
+
+
+## How many of all the themes you have learned. The mystery books open once you have them all.
+func _themes_had() -> int:
+	return GameData.THEMES.keys().filter(func(t: String) -> bool: return t in themes_owned).size()
+
+
+func mystery_open() -> bool:
+	return _themes_had() >= GameData.THEMES.size()
 	var rec: Dictionary = level_records.get(level, {})
 	hud_star.set_record(not rec.is_empty(), float(rec.get("best", 0.0)), bool(rec.get("conquered", false)))
 

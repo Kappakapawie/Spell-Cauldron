@@ -17,6 +17,7 @@ var cards: Array[LevelCard] = []
 var page := -1           ## 0 = the normal books, 1 = the mystery books (-1 = not decided yet)
 var page_label: Label
 var info_label: Label    ## what the book under the mouse asks of you
+var themes_had := 0      ## the mystery books open once you have every theme
 var earlier: Button
 var later: Button
 var total_star: LevelStar
@@ -43,7 +44,7 @@ func _init() -> void:
 		card.position = Vector2(x - LevelCard.CARD.x * 0.5 * zoom, SHELF_Y[(i / PER_SHELF) % SHELF_Y.size()] - LevelCard.PLANK_Y * zoom)
 		card.pressed.connect(func() -> void: level_chosen.emit(card.number))
 		card.mouse_entered.connect(func() -> void: info_label.text = card.tooltip_text.replace("\n", "  -  "))
-		card.mouse_exited.connect(func() -> void: info_label.text = "")
+		card.mouse_exited.connect(func() -> void: show_page(page))  # back to what the page says
 		add_child(card)
 		cards.append(card)
 	earlier = MenuKit.button("<", Vector2(ScreenLayout.pick(54, 90), ScreenLayout.pick(72, 110)), func() -> void: show_page(page - 1))
@@ -81,6 +82,8 @@ func show_page(n: int) -> void:
 	info_label.text = ""
 	page_label.text = "Brew recipes 1-%d" % GameData.LEVELS.size() if page == 0 \
 		else "Mystery recipes 1-%d: every word has a secret theme" % GameData.MYSTERY_LIKE.size()
+	if page == 1 and themes_had < GameData.THEMES.size():
+		info_label.text = "Locked: learn every theme in the spell book first (%d / %d)" % [themes_had, GameData.THEMES.size()]
 	queue_redraw()
 
 
@@ -89,21 +92,29 @@ func show_book(n: int) -> void:
 	show_page(1 if GameData.is_mystery(n) else 0)
 
 
-func refresh(records: Dictionary, total_stars: float) -> void:
+func refresh(records: Dictionary, total_stars: float, p_themes_had: int = GameData.THEMES.size()) -> void:
+	themes_had = p_themes_had
+	var open := themes_had >= GameData.THEMES.size()
 	total_star.set_record(true, total_stars, true)
 	var found := {}  # per page
 	for card in cards:
 		var rec: Dictionary = records.get(card.number, {})
 		var conquered: bool = rec.get("conquered", false)
 		card.star.set_record(not rec.is_empty(), float(rec.get("best", 0.0)), conquered)
+		card.locked = card.mystery and not open
+		card.disabled = card.locked
+		card.tooltip_text = card.info + ("\nLocked: learn every theme first" if card.locked else "")
+		card.mouse_default_cursor_shape = Control.CURSOR_ARROW if card.locked else Control.CURSOR_POINTING_HAND
 		# The first book on each page that is not conquered yet is the one to try next.
-		card.suggested = not found.has(card.mystery) and not conquered
+		card.suggested = not found.has(card.mystery) and not conquered and not card.locked
 		if card.suggested:
 			found[card.mystery] = true
 		if card.suggested and page < 0:
 			show_book(card.number)
 	if page < 0:
 		show_page(0)
+	else:
+		show_page(page)  # the page's line may have changed
 
 
 ## Which level's card is under this screen point (0 for none).
