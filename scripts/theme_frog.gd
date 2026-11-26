@@ -80,7 +80,7 @@ func open(book: int, themes: Array) -> void:
 	_run += 1
 	visible = true
 	_reset()
-	_title.text = "Brew recipes %d" % book
+	_title.text = GameData.book_title(book)
 	_cough(themes, _run)
 
 

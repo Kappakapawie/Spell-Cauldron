@@ -385,6 +385,7 @@ func _check_gameplay() -> void:
 		print("bought a Wisdom slot for ", price, " points")
 
 	await _check_mixed(main)
+	await _check_mystery(main)
 	await _check_first_mission(main)
 	await _check_theme_shop(main)
 	await _check_unlocks(main)
@@ -1143,18 +1144,25 @@ func _check_frog(main: Node) -> void:
 	main.complete_panel.next_pressed.emit()
 	if main.level != 4 or not main.frog.visible:
 		_fail("Next recipes did not bring up the frog for book 4")
-	# The second page of books.
+	# Page 1 holds all 29 books, page 2 the 20 mystery books.
 	main._show_screen(main.Screen.LEVELS)
+	main.picker.show_page(0)
+	if not main.picker.cards[0].visible or not main.picker.cards[28].visible or main.picker.cards[29].visible or main.picker.earlier.visible:
+		_fail("page 1 should show books 1-29 only")
 	main.picker.later.pressed.emit()
-	if main.picker.cards[9].visible or not main.picker.cards[10].visible or not main.picker.later.visible:
-		_fail("the picker did not turn to books 11-20")
-	main.picker.later.pressed.emit()
-	if main.picker.cards[19].visible or not main.picker.cards[28].visible or main.picker.later.visible:
-		_fail("the picker did not turn to books 21-29")
+	if main.picker.cards[28].visible or not main.picker.cards[29].visible or not main.picker.cards[48].visible or main.picker.later.visible:
+		_fail("the picker did not turn to the mystery books")
+	if main.picker.cards.size() != 49 or main.picker.level_at(main.picker.cards[29].get_global_rect().get_center()) != 30:
+		_fail("the mystery books are not on the shelves: %d books" % main.picker.cards.size())
 	main.picker.earlier.pressed.emit()
-	main.picker.earlier.pressed.emit()
-	if not main.picker.cards[0].visible or main.picker.cards[19].visible:
-		_fail("the picker did not turn back to books 1-10")
+	if not main.picker.cards[0].visible or main.picker.cards[29].visible:
+		_fail("the picker did not turn back to page 1")
+	# No two books on a page lie on top of each other.
+	for a in range(0, 49):
+		for b in range(a + 1, 49):
+			if GameData.is_mystery(a + 1) == GameData.is_mystery(b + 1) \
+					and main.picker.cards[a].get_global_rect().grow(-2).intersects(main.picker.cards[b].get_global_rect().grow(-2)):
+				_fail("books %d and %d overlap on the shelf" % [a + 1, b + 1])
 	main.level_records = {}
 	main.potions = {PotionArt.WISDOM: 2, PotionArt.VISION: 2}
 	main._open_book(3)
@@ -1590,6 +1598,57 @@ func _check_mixed(main: Node) -> void:
 	main.potions = {PotionArt.WISDOM: 2, PotionArt.VISION: 2}
 	main.picker.show_page(0)
 	print("mixed books ok")
+
+
+## Mystery books (page 2): easy to hard again, one secret theme, no frog, the theme told at the end.
+func _check_mystery(main: Node) -> void:
+	if GameData.book_count() != 49 or GameData.MYSTERY_LIKE.size() < 20:
+		_fail("there should be at least 20 mystery books")
+	var last := 0
+	for n in range(30, GameData.book_count() + 1):
+		var like: int = GameData.MYSTERY_LIKE[n - 30]
+		if like < last or not GameData.book(n).mystery or GameData.book(n).has("mixed") or GameData.book(n).min_len != GameData.LEVELS[like - 1].min_len:
+			_fail("mystery book %d: %s" % [n - 29, GameData.book(n)])
+		last = like
+	if GameData.MYSTERY_LIKE[0] != 1 or GameData.MYSTERY_LIKE[-1] != GameData.LEVELS.size() or GameData.book(1).has("mystery"):
+		_fail("the mystery books should go from book 1 to book 29 again")
+	if GameData.book_title(30) != "Mystery recipes 1" or GameData.book_title(3) != "Brew recipes 3":
+		_fail("book titles: %s, %s" % [GameData.book_title(30), GameData.book_title(3)])
+	main.owned_upgrades = {"frog": 1}
+	main.book_offers.erase(32)
+	main._open_book(32)
+	await process_frame
+	if main.frog.visible or not main.hud.visible or main.level != 32 or main.puzzle.is_empty():
+		_fail("a mystery book did not start at once")
+	var secret: String = main.theme
+	if main.book_offers.get(32, []) != [secret] or main.level_label.text != "Mystery recipes 3":
+		_fail("the secret theme was not kept with the book: %s" % main.book_offers.get(32))
+	for i in 10:
+		if main.session_themes[i] != secret or not (main.session_words[i] in GameData.THEMES[secret]):
+			_fail("a mystery book mixed its themes")
+	if main.theme_label.text.contains(secret) or not main.theme_label.text.contains("Secret"):
+		_fail("the theme sign gives the secret away: %s" % main.theme_label.text)
+	if main.pocket_frog.visible:
+		_fail("the little frog can reroll a mystery theme")
+	# Leaving and coming back keeps the same secret.
+	main._show_screen(main.Screen.LEVELS)
+	main._open_book(32)
+	await process_frame
+	if main.theme != secret:
+		_fail("leaving a mystery book changed its theme")
+	# Brewed to the end: the secret is told, and the next book has its own.
+	while not main.complete_panel.visible:
+		_solve(main, main.puzzle.word, false)
+		await main._stir()
+	if not main.complete_panel.message_label.text.contains(secret) or not main.complete_panel.title_label.text.begins_with("Mystery recipes 3"):
+		_fail("the end of a mystery book: %s / %s" % [main.complete_panel.title_label.text, main.complete_panel.message_label.text])
+	if main.book_offers.has(32) or not main.level_records.has(32):
+		_fail("a brewed mystery book kept its theme or lost its score")
+	main._show_screen(main.Screen.LEVELS)
+	main.level_records.erase(32)
+	main.owned_upgrades = {}
+	main.picker.show_page(0)
+	print("mystery books ok")
 
 
 ## A new game: FROG first, then the frog (free, nothing else), then one free meal.

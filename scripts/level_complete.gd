@@ -79,7 +79,7 @@ func _centered(font_size: int, color: Color, y: float) -> Label:
 ##          best_before, perfect, was_conquered, has_next, hourglass (learned), lost (its sand ran out),
 ##          words: Array of {word, picture, points, fast, time}, unlocked: Array of spell names}
 func show_result(result: Dictionary) -> void:
-	title_label.text = "Brew recipes %d complete!" % result.level
+	title_label.text = "%s complete!" % GameData.book_title(result.level)
 	next_button.visible = result.has_next
 	var text := ""
 	if result.perfect:
@@ -92,6 +92,9 @@ func show_result(result: Dictionary) -> void:
 			MenuKit.points_text(result.time), MenuKit.points_text(result.best_plain), MenuKit.points_text(result.best_time)]
 	elif result.best > result.plain:
 		text += "This run: %s" % MenuKit.points_text(result.plain)
+	message_label.text = text.strip_edges()
+	if result.get("secret", "") != "":
+		text = ("The secret theme was %s %s!  " % [GameData.THEME_ICONS.get(result.secret, ""), result.secret]) + text
 	message_label.text = text.strip_edges()
 	var spells := PackedStringArray(result.unlocked)
 	unlock_label.text = "" if spells.is_empty() else "New in the spell book: %s" % ", ".join(spells)

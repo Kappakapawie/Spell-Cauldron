@@ -162,7 +162,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(-w * 0.5, 22), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffd45c"))
 		x += w
 	draw_set_transform(Vector2.ZERO)
-	_text("Brew recipes %d" % book, 186, 28, clampf((age - 0.6) / 0.3, 0.0, 1.0), Color("fff3d6"), 1.0)
+	_text(GameData.book_title(book), 186, 28, clampf((age - 0.6) / 0.3, 0.0, 1.0), Color("fff3d6"), 1.0)
 	if time > 0.0:
 		_draw_pouring(c)
 	_text(ScreenLayout.say("Click to go on"), 688, 18, clampf((age - 1.0) / 0.4, 0.0, 0.5), Color("fff3d6"), 1.0)

@@ -38,7 +38,7 @@ Otherwise the game stops with "Identifier not declared": `godot --headless --pat
 
 ## Where things are
 - `scripts/main.gd`: nearly everything: game flow, screens, pets, upgrades, potions, input, drawing, save and load (sections marked `# -----`).
-- `scripts/game_data.gd`: the 29 recipe books (`LEVELS`) and the 11 themes with their words (word, meaning, pictures).
+- `scripts/game_data.gd`: the 29 recipe books (`LEVELS`), the 20 mystery books (`MYSTERY_LIKE`, numbers 30-49; use `GameData.book(n)`, not `LEVELS[n - 1]`) and the 11 themes with their words (word, meaning, pictures).
 - `scripts/parked_themes.gd`: ten more themes, parked until the game changes are done.
 - `scripts/screen_layout.gd`: the phone layout. `scripts/spell_book.gd`: the Shelves (skill tree).
 - `scripts/book_finale.gd`, `sand_out.gd`, `sand_timer.gd`, `level_complete.gd`: the end of a book and the hourglass.

@@ -391,7 +391,7 @@ func _process(delta: float) -> void:
 		spoon.position = pointer
 	_run_pets(delta)
 	_run_mouse(delta)
-	pocket_frog.visible = screen == Screen.PLAY and rank_of("frog") > 0
+	pocket_frog.visible = screen == Screen.PLAY and rank_of("frog") > 0 and not _is_mystery()
 	pocket_frog.awake = not busy
 	_run_sand(delta)
 	_run_tutorial()
@@ -569,7 +569,7 @@ func _cheat_click(p: Vector2, fill: bool) -> bool:
 		# Spell book: shelf spells, upgrade spells, and the cauldron in the middle (all stars).
 		var id := shop_panel.node_at(p)
 		if id == "root":
-			for n in range(1, GameData.LEVELS.size() + 1):
+			for n in range(1, GameData.book_count() + 1):
 				if fill:
 					level_records[n] = {"best": float(GameData.word_count(n)), "conquered": true}
 				else:
@@ -677,7 +677,7 @@ func sand_time() -> float:
 
 ## All the sand of the current book: every word's share, by the book's average number of missing letters.
 func book_sand_time() -> float:
-	var book: Dictionary = GameData.LEVELS[level - 1]
+	var book: Dictionary = GameData.book(level)
 	var missing := (int(book.missing_min) + int(book.missing_max)) / 2.0
 	var seconds: float = SAND_BASE + SAND_PER_LETTER * missing + (0.0 if book.gaps_visible else SAND_HIDDEN)
 	return seconds * level_max() * (1.0 + SAND_RANK * rank_of("more_sand"))
@@ -1127,6 +1127,14 @@ func _open_book(n: int) -> void:
 		picker.show_book(n)
 		_start_level(n)
 		return
+	if _is_mystery():
+		# One secret theme, picked without the frog. It stays with the book until it is brewed to the end.
+		if not book_offers.has(n):
+			book_offers[n] = _roll_themes(n, 1, [])
+			_save_game()
+		picker.show_book(n)
+		_start_book(book_offers[n][0])
+		return
 	var want := 1 + (rank_of("frog_choice") if rank_of("frog") > 0 else 0)
 	var offer: Array = book_offers.get(n, [])
 	if offer.size() < want:
@@ -1139,9 +1147,14 @@ func _open_book(n: int) -> void:
 	frog.open(n, offer)
 
 
+## Mystery books: the theme is a secret until the book is brewed to the end.
+func _is_mystery() -> bool:
+	return GameData.is_mystery(level)
+
+
 ## Books whose words each come from another theme.
 func _is_mixed() -> bool:
-	return GameData.LEVELS[level - 1].get("mixed", false)
+	return GameData.book(level).get("mixed", false)
 
 
 ## The entries of `always_words` that still belong in every book of theme t.
@@ -1156,7 +1169,7 @@ func _always_in(t: String) -> Array:
 
 ## `count` words of theme t for the open book, none of those in `used` if that is possible.
 func _pick_words(t: String, count: int, used: Array = []) -> Array:
-	var words: Array = dealer.pick(t, GameData.LEVELS[level - 1], _names_to_spell()).slice(0, count)
+	var words: Array = dealer.pick(t, GameData.book(level), _names_to_spell()).slice(0, count)
 	var missing: Array = _always_in(t).filter(func(e: Array) -> bool: return not (e in words) and not (e in used))
 	for i in mini(missing.size(), count):
 		# In the place of an ordinary word.
@@ -1173,7 +1186,7 @@ func _one_word(t: String, used: Array) -> Array:
 		if not (e in used):
 			return e
 	var names := _names_to_spell()
-	var words := dealer.pick(t, GameData.LEVELS[level - 1], names)
+	var words := dealer.pick(t, GameData.book(level), names)
 	var free := words.filter(func(e: Array) -> bool: return not (e in used))
 	for e in free:
 		if e[0] in names:
@@ -1195,7 +1208,7 @@ func _roll_themes(n: int, count: int, avoid: Array, rather_not: Array = []) -> A
 	for i in order.size():
 		var t: String = order[i]
 		if not (t in avoid):
-			ranks[t] = i + randf() * luck + (0.0 if dealer.has_enough(t, GameData.LEVELS[n - 1]) else (0.4 if few else 0.9)) \
+			ranks[t] = i + randf() * luck + (0.0 if dealer.has_enough(t, GameData.book(n)) else (0.4 if few else 0.9)) \
 				+ (100.0 if t in rather_not else 0.0)
 	var names := ranks.keys()
 	names.sort_custom(func(a: String, b: String) -> bool: return ranks[a] < ranks[b])
@@ -1289,7 +1302,7 @@ func _use_theme(t: String) -> void:
 ## on, and coughs up another theme (or a few to choose from) for this word and the ones after it.
 ## It costs no score; but help already used on this level still counts.
 func _feed_pocket_frog() -> void:
-	if screen != Screen.PLAY or busy or dragged or complete_panel.visible or shop_panel.visible or rank_of("frog") == 0:
+	if screen != Screen.PLAY or busy or dragged or complete_panel.visible or shop_panel.visible or rank_of("frog") == 0 or _is_mystery():
 		return
 	if not _can_reroll():
 		pocket_frog.refuse()
@@ -1376,6 +1389,8 @@ func _swap_theme(t: String) -> void:
 
 
 func _theme_text(t: String) -> String:
+	if _is_mystery():
+		return "❓  Secret theme"
 	return "%s  %s" % [GameData.THEME_ICONS.get(t, ""), t]
 
 
@@ -1429,7 +1444,7 @@ func _start_level(n: int) -> void:
 	word_results = []
 	for id in pet_time:
 		pet_time[id] = 0.0
-	level_label.text = "Brew recipes %d" % level
+	level_label.text = GameData.book_title(level)
 	_start_word()
 
 
@@ -1463,7 +1478,7 @@ func _start_word() -> void:
 	_clear_word()
 	var new_theme: bool = theme_label.text != _theme_text(session_themes[word_number])
 	theme = session_themes[word_number]
-	puzzle = PuzzleMaker.make(session_words[word_number], GameData.LEVELS[level - 1])
+	puzzle = PuzzleMaker.make(session_words[word_number], GameData.book(level))
 	dealer.mark_seen(theme, puzzle.word)
 	var word: String = puzzle.word
 	var missing: Array = puzzle.missing
@@ -1508,6 +1523,8 @@ func _start_word() -> void:
 		sand_timer.lose()
 	progress_label.text = "Level %d / %d" % [word_number + 1, level_max()]
 	theme_label.text = _theme_text(theme)
+	theme_label.tooltip_text = "The theme is a secret: work it out from the words.\nIt is told when the book is brewed to the end." \
+		if _is_mystery() else "The word comes from this theme."
 	if new_theme:
 		theme_label.scale = Vector2.ONE * 0.6
 		var pop := theme_label.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -1577,9 +1594,10 @@ func _show_level_complete() -> void:
 		"best_before": best_before,
 		"perfect": perfect,
 		"was_conquered": was_conquered,
-		"has_next": level < GameData.LEVELS.size(),
+		"has_next": level < GameData.book_count(),
 		"hourglass": rank_of("hourglass") > 0,
 		"lost": sand_lost,
+		"secret": theme if _is_mystery() else "",  # a mystery book tells its theme at the end
 		"words": word_results,
 		"unlocked": unlocked,
 	})
@@ -2303,16 +2321,16 @@ func _load_game() -> void:
 	dealer.from_save(seen)
 	# Saves with 30 books: the old book 2 was the same as book 1 and is gone, the later ones moved up one place.
 	var had_30: bool = not cfg.has_section_key("progress", "books")
-	var old_books := 30 if had_30 else GameData.LEVELS.size()
+	var old_books := 30 if had_30 else GameData.book_count()
 	for saved_n in range(1, old_books + 1):
 		if had_30 and saved_n == 2:
 			continue
 		var n: int = saved_n - 1 if had_30 and saved_n > 2 else saved_n
 		var offer: Array = _renamed(cfg.get_value("offers", "book_%d" % saved_n, []))
 		offer = offer.filter(func(t: Variant) -> bool: return GameData.THEMES.has(t))
-		if not offer.is_empty() and not GameData.LEVELS[n - 1].get("mixed", false):
+		if not offer.is_empty() and not GameData.book(n).get("mixed", false):
 			book_offers[n] = offer
-	for n in range(1, GameData.LEVELS.size() + 1):
+	for n in range(1, GameData.book_count() + 1):
 		if cfg.has_section_key("offers", "fed_%d" % n):
 			frog_uses[n] = int(cfg.get_value("offers", "fed_%d" % n))
 	# Best scores: 1 point per word ("recipes" section). Older saves counted 10 per word ("stars").

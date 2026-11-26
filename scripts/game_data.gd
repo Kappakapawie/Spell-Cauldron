@@ -1697,15 +1697,50 @@ static func words_in(settings: Dictionary) -> int:
 
 ## How many words book n has. Each is worth 1 point, so this is also its perfect score.
 static func word_count(n: int) -> int:
-	return words_in(LEVELS[n - 1])
+	return words_in(book(n))
 
 
 ## The perfect score of all books together.
 static func total_words() -> int:
 	var total := 0
-	for n in range(1, LEVELS.size() + 1):
+	for n in range(1, book_count() + 1):
 		total += word_count(n)
 	return total
+
+
+## Page 2 of the shelves: the mystery books, numbers 30 and up in the code. Each plays like the normal book
+## named here (easy to hard again, squeezed into 20), but its theme is a secret until the book is brewed.
+const MYSTERY_LIKE: Array[int] = [1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25, 26, 28, 29]
+
+
+## All books: the normal ones, then the mystery ones.
+static func book_count() -> int:
+	return LEVELS.size() + MYSTERY_LIKE.size()
+
+
+static func is_mystery(n: int) -> bool:
+	return n > LEVELS.size()
+
+
+## The settings of book n (1 = the first normal book; after the normal books come the mystery books).
+## A mystery book has one secret theme for all its words, so it is never mixed.
+static func book(n: int) -> Dictionary:
+	if not is_mystery(n):
+		return LEVELS[n - 1]
+	var settings: Dictionary = LEVELS[MYSTERY_LIKE[n - LEVELS.size() - 1] - 1].duplicate()
+	settings.erase("mixed")
+	settings["mystery"] = true
+	return settings
+
+
+## The number on the book's cover: mystery books count from 1 again.
+static func book_number(n: int) -> int:
+	return n - LEVELS.size() if is_mystery(n) else n
+
+
+## "Brew recipes 3" or "Mystery recipes 5".
+static func book_title(n: int) -> String:
+	return ("Mystery recipes %d" if is_mystery(n) else "Brew recipes %d") % book_number(n)
 
 
 ## The fewest and most letters a book can really take out of its words.
