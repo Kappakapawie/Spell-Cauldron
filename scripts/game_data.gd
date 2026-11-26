@@ -1709,8 +1709,10 @@ static func total_words() -> int:
 
 
 ## Page 2 of the shelves: the mystery books, numbers 30 and up in the code. Each plays like the normal book
-## named here (easy to hard again, squeezed into 20), but every word has its own random theme, and it is a secret.
-const MYSTERY_LIKE: Array[int] = [1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25, 26, 28, 29]
+## named here, but every word has its own random theme, and it is a secret. They climb the same staircase as
+## the normal books, squeezed into 20: every number of missing letters starts with the gaps shown (twice from
+## 2 letters on), then hidden; never easier than the book before (the smoke test checks this).
+const MYSTERY_LIKE: Array[int] = [1, 2, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 17, 18, 20, 22, 24, 25, 27, 29]
 
 
 ## All books: the normal ones, then the mystery ones.

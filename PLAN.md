@@ -109,7 +109,8 @@
   shelves when the mouse is on it (and in its tooltip). All books are always open; on each page the first one not mastered glows.
   - **Page 1:** the 29 normal books, on three shelves.
   - **Page 2: Mystery recipes** (`GameData.MYSTERY_LIKE`, book numbers 30-49 in the code, 1-20 on their covers; dark violet books with a "?"):
-    each plays like a normal book, easy to hard again (1, 2, 4, 5, 7, 8 ... 28, 29), but it is always **mixed** (a new random theme for every
+    each plays like a normal book, easy to hard again on the same staircase, squeezed into 20 (like books 1, 2, 4-10, 12, 14, 15, 17, 18, 20, 22, 24, 25, 27, 29:
+    each number of missing letters starts with the gaps shown, twice from 2 letters on, then hidden), but it is always **mixed** (a new random theme for every
     word, never the same twice in a row) and the themes are **secret**: the sign says "Secret theme", there is no frog screen and the little
     frog is gone. The end screen tells each word's theme beside it. Their stars count like any others.
 - **Pause** (*Menu* button or Esc): everything stands still. Leaving a book is only possible from here,

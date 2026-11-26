@@ -1612,6 +1612,26 @@ func _check_mystery(main: Node) -> void:
 		last = like
 	if GameData.MYSTERY_LIKE[0] != 1 or GameData.MYSTERY_LIKE[-1] != GameData.LEVELS.size() or GameData.book(1).has("mystery"):
 		_fail("the mystery books should go from book 1 to book 29 again")
+	# The same staircase as the normal books: never easier, and each number of missing letters starts with the gaps shown
+	# (at least twice from 2 letters on) before they are hidden.
+	for n in range(31, GameData.book_count() + 1):
+		var a: Dictionary = GameData.book(n - 1)
+		var b: Dictionary = GameData.book(n)
+		var a_missing: int = GameData.missing_span(a).y
+		var b_missing: int = GameData.missing_span(b).y
+		if b_missing < a_missing or b.min_len < a.min_len or b.decoys < a.decoys - 1:
+			_fail("mystery book %d is easier than the one before" % (n - 29))
+		if b_missing > a_missing and not b.gaps_visible:
+			_fail("mystery book %d: %d letters start with the gaps hidden" % [n - 29, b_missing])
+		if b_missing == a_missing and b.gaps_visible and not a.gaps_visible:
+			_fail("mystery book %d shows the gaps again" % (n - 29))
+	for missing in range(2, 6):
+		var shown := 0
+		for n in range(30, GameData.book_count() + 1):
+			if GameData.missing_span(GameData.book(n)).y == missing and GameData.book(n).gaps_visible:
+				shown += 1
+		if shown < 2:
+			_fail("mystery books: %d letters with the gaps shown only %d times" % [missing, shown])
 	if GameData.book_title(30) != "Mystery recipes 1" or GameData.book_title(3) != "Brew recipes 3":
 		_fail("book titles: %s, %s" % [GameData.book_title(30), GameData.book_title(3)])
 	main.owned_upgrades = {"frog": 1}
