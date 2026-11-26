@@ -1600,14 +1600,14 @@ func _check_mixed(main: Node) -> void:
 	print("mixed books ok")
 
 
-## Mystery books (page 2): easy to hard again, one secret theme, no frog, the theme told at the end.
+## Mystery books (page 2): easy to hard again, a new secret theme for every word, no frog, the themes told at the end.
 func _check_mystery(main: Node) -> void:
 	if GameData.book_count() != 49 or GameData.MYSTERY_LIKE.size() < 20:
 		_fail("there should be at least 20 mystery books")
 	var last := 0
 	for n in range(30, GameData.book_count() + 1):
 		var like: int = GameData.MYSTERY_LIKE[n - 30]
-		if like < last or not GameData.book(n).mystery or GameData.book(n).has("mixed") or GameData.book(n).min_len != GameData.LEVELS[like - 1].min_len:
+		if like < last or not GameData.book(n).mystery or not GameData.book(n).mixed or GameData.book(n).min_len != GameData.LEVELS[like - 1].min_len:
 			_fail("mystery book %d: %s" % [n - 29, GameData.book(n)])
 		last = like
 	if GameData.MYSTERY_LIKE[0] != 1 or GameData.MYSTERY_LIKE[-1] != GameData.LEVELS.size() or GameData.book(1).has("mystery"):
@@ -1615,35 +1615,39 @@ func _check_mystery(main: Node) -> void:
 	if GameData.book_title(30) != "Mystery recipes 1" or GameData.book_title(3) != "Brew recipes 3":
 		_fail("book titles: %s, %s" % [GameData.book_title(30), GameData.book_title(3)])
 	main.owned_upgrades = {"frog": 1}
-	main.book_offers.erase(32)
 	main._open_book(32)
 	await process_frame
 	if main.frog.visible or not main.hud.visible or main.level != 32 or main.puzzle.is_empty():
 		_fail("a mystery book did not start at once")
-	var secret: String = main.theme
-	if main.book_offers.get(32, []) != [secret] or main.level_label.text != "Mystery recipes 3":
-		_fail("the secret theme was not kept with the book: %s" % main.book_offers.get(32))
+	if main.level_label.text != "Mystery recipes 3" or main.pocket_frog.visible or main.book_offers.has(32):
+		_fail("mystery book 3: %s, little frog %s" % [main.level_label.text, main.pocket_frog.visible])
+	var themes := {}
 	for i in 10:
-		if main.session_themes[i] != secret or not (main.session_words[i] in GameData.THEMES[secret]):
-			_fail("a mystery book mixed its themes")
-	if main.theme_label.text.contains(secret) or not main.theme_label.text.contains("Secret"):
-		_fail("the theme sign gives the secret away: %s" % main.theme_label.text)
-	if main.pocket_frog.visible:
-		_fail("the little frog can reroll a mystery theme")
-	# Leaving and coming back keeps the same secret.
-	main._show_screen(main.Screen.LEVELS)
-	main._open_book(32)
-	await process_frame
-	if main.theme != secret:
-		_fail("leaving a mystery book changed its theme")
-	# Brewed to the end: the secret is told, and the next book has its own.
+		var t: String = main.session_themes[i]
+		themes[t] = true
+		if not (main.session_words[i] in GameData.THEMES[t]):
+			_fail("mystery: %s is not from %s" % [main.session_words[i][0], t])
+		if i > 0 and main.session_themes[i - 1] == t:
+			_fail("mystery: theme %s twice in a row" % t)
+	if themes.size() < 3:
+		_fail("a mystery book should have a new theme for every word: %s" % [themes.keys()])
+	# Brewed to the end: every word's secret is told beside it.
 	while not main.complete_panel.visible:
+		if main.theme_label.text.contains(main.theme) or not main.theme_label.text.contains("Secret"):
+			_fail("the theme sign gives the secret away: %s" % main.theme_label.text)
 		_solve(main, main.puzzle.word, false)
 		await main._stir()
-	if not main.complete_panel.message_label.text.contains(secret) or not main.complete_panel.title_label.text.begins_with("Mystery recipes 3"):
+	if not main.complete_panel.title_label.text.begins_with("Mystery recipes 3") or not main.complete_panel.message_label.text.contains("secret"):
 		_fail("the end of a mystery book: %s / %s" % [main.complete_panel.title_label.text, main.complete_panel.message_label.text])
-	if main.book_offers.has(32) or not main.level_records.has(32):
-		_fail("a brewed mystery book kept its theme or lost its score")
+	for i in 10:
+		if main.word_results[i].theme != main.session_themes[i]:
+			_fail("word %d does not tell its secret theme" % (i + 1))
+	var row: Control = main.complete_panel._word_row(main.word_results[0])
+	if not row.get_children().any(func(c: Node) -> bool: return c is Label and c.text.contains(main.session_themes[0])):
+		_fail("the end screen does not show the secret theme")
+	row.free()
+	if not main.level_records.has(32):
+		_fail("a brewed mystery book lost its score")
 	main._show_screen(main.Screen.LEVELS)
 	main.level_records.erase(32)
 	main.owned_upgrades = {}

@@ -34,12 +34,12 @@ func _init(p_number: int = 1) -> void:
 		var t := (number - 1) / float(GameData.LEVELS.size() - 1)
 		_cover = Color.from_hsv(0.36 + 0.5 * t, 0.52, 0.55)  # green for easy ... pink for hard
 	_lines = [
-		"%s letters%s" % [_span(settings.min_len, settings.max_len), ", mixed themes" if settings.get("mixed", false) else ""],
+		"%s letters%s" % [_span(settings.min_len, settings.max_len), ", mixed themes" if settings.get("mixed", false) and not mystery else ""],
 		"find %s, gaps %s" % [_span(GameData.missing_span(settings).x, GameData.missing_span(settings).y),
 			"shown" if settings.gaps_visible else "hidden"],
 	]
 	if mystery:
-		_lines.append("the theme is a secret")
+		_lines.append("a secret theme for every word")
 	tooltip_text = "%s\n%s" % [GameData.book_title(number), "\n".join(_lines)]
 	star = LevelStar.new()
 	star.show_empty = true

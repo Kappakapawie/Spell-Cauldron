@@ -93,8 +93,8 @@ func show_result(result: Dictionary) -> void:
 	elif result.best > result.plain:
 		text += "This run: %s" % MenuKit.points_text(result.plain)
 	message_label.text = text.strip_edges()
-	if result.get("secret", "") != "":
-		text = ("The secret theme was %s %s!  " % [GameData.THEME_ICONS.get(result.secret, ""), result.secret]) + text
+	if result.get("secret", false):
+		text = "The secret themes are beside the words.  " + text
 	message_label.text = text.strip_edges()
 	var spells := PackedStringArray(result.unlocked)
 	unlock_label.text = "" if spells.is_empty() else "New in the spell book: %s" % ", ".join(spells)
@@ -144,6 +144,15 @@ func _word_row(w: Dictionary) -> Control:
 	var name_label := MenuKit.label(w.word, 22, MenuKit.INK)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(name_label)
+	if w.get("theme", "") != "":  # a mystery book: its secret theme, told now
+		var t := MenuKit.label("%s %s" % [GameData.THEME_ICONS.get(w.theme, ""), w.theme], 15, Color("6b4a2a"))
+		if emoji_font:  # letters from the usual font, the icon from the emoji font
+			var with_icons := FontVariation.new()
+			with_icons.base_font = ThemeDB.fallback_font
+			var more: Array[Font] = [emoji_font]
+			with_icons.fallbacks = more
+			t.add_theme_font_override("font", with_icons)
+		h.add_child(t)
 	if w.get("fast", false):
 		h.add_child(MenuKit.label("time +" + MenuKit.points_text(w.time), 17, Color("b8842a")))
 	var full: bool = w.points >= 1.0

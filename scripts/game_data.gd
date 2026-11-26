@@ -1709,7 +1709,7 @@ static func total_words() -> int:
 
 
 ## Page 2 of the shelves: the mystery books, numbers 30 and up in the code. Each plays like the normal book
-## named here (easy to hard again, squeezed into 20), but its theme is a secret until the book is brewed.
+## named here (easy to hard again, squeezed into 20), but every word has its own random theme, and it is a secret.
 const MYSTERY_LIKE: Array[int] = [1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25, 26, 28, 29]
 
 
@@ -1723,12 +1723,12 @@ static func is_mystery(n: int) -> bool:
 
 
 ## The settings of book n (1 = the first normal book; after the normal books come the mystery books).
-## A mystery book has one secret theme for all its words, so it is never mixed.
+## A mystery book is always mixed: a new secret theme for every word.
 static func book(n: int) -> Dictionary:
 	if not is_mystery(n):
 		return LEVELS[n - 1]
 	var settings: Dictionary = LEVELS[MYSTERY_LIKE[n - LEVELS.size() - 1] - 1].duplicate()
-	settings.erase("mixed")
+	settings["mixed"] = true
 	settings["mystery"] = true
 	return settings
 

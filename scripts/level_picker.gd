@@ -80,7 +80,7 @@ func show_page(n: int) -> void:
 	later.visible = page < PAGES - 1
 	info_label.text = ""
 	page_label.text = "Brew recipes 1-%d" % GameData.LEVELS.size() if page == 0 \
-		else "Mystery recipes 1-%d: the theme is a secret" % GameData.MYSTERY_LIKE.size()
+		else "Mystery recipes 1-%d: every word has a secret theme" % GameData.MYSTERY_LIKE.size()
 	queue_redraw()
 
 

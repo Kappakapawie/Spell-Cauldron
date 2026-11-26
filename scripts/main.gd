@@ -1127,14 +1127,6 @@ func _open_book(n: int) -> void:
 		picker.show_book(n)
 		_start_level(n)
 		return
-	if _is_mystery():
-		# One secret theme, picked without the frog. It stays with the book until it is brewed to the end.
-		if not book_offers.has(n):
-			book_offers[n] = _roll_themes(n, 1, [])
-			_save_game()
-		picker.show_book(n)
-		_start_book(book_offers[n][0])
-		return
 	var want := 1 + (rank_of("frog_choice") if rank_of("frog") > 0 else 0)
 	var offer: Array = book_offers.get(n, [])
 	if offer.size() < want:
@@ -1147,7 +1139,7 @@ func _open_book(n: int) -> void:
 	frog.open(n, offer)
 
 
-## Mystery books: the theme is a secret until the book is brewed to the end.
+## Mystery books: every word has its own theme, and it is a secret until the book is brewed to the end.
 func _is_mystery() -> bool:
 	return GameData.is_mystery(level)
 
@@ -1523,7 +1515,7 @@ func _start_word() -> void:
 		sand_timer.lose()
 	progress_label.text = "Level %d / %d" % [word_number + 1, level_max()]
 	theme_label.text = _theme_text(theme)
-	theme_label.tooltip_text = "The theme is a secret: work it out from the words.\nIt is told when the book is brewed to the end." \
+	theme_label.tooltip_text = "Every word has its own secret theme.\nThey are told when the book is brewed to the end." \
 		if _is_mystery() else "The word comes from this theme."
 	if new_theme:
 		theme_label.scale = Vector2.ONE * 0.6
@@ -1597,7 +1589,7 @@ func _show_level_complete() -> void:
 		"has_next": level < GameData.book_count(),
 		"hourglass": rank_of("hourglass") > 0,
 		"lost": sand_lost,
-		"secret": theme if _is_mystery() else "",  # a mystery book tells its theme at the end
+		"secret": _is_mystery(),  # a mystery book tells its themes at the end, beside each word
 		"words": word_results,
 		"unlocked": unlocked,
 	})
@@ -2074,7 +2066,8 @@ func _brew_success() -> void:
 	var time_stars := TIME_POINT + sand_timer.bonus() if fast else 0.0  # Golden sand: more for what is left
 	plain_points += word_score()
 	time_points += time_stars
-	word_results.append({"word": puzzle.word, "picture": _main_picture(), "points": word_score(), "fast": fast, "time": time_stars})
+	word_results.append({"word": puzzle.word, "picture": _main_picture(), "points": word_score(), "fast": fast, "time": time_stars,
+		"theme": theme if _is_mystery() else ""})  # a mystery's secret, told at the end
 	if fast:
 		sand_timer.win()
 	_award_potions()

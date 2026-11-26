@@ -16,7 +16,7 @@ Or double-click **Play Spell Cauldron.bat**. **Reset game** on the title screen 
 - **Drag** letters from the table into the word.
 - **Stir** by swiping left across the brew with your mouse.
 - **Wisdom / Vision** potions are unlocked by spelling WISDOM and VISION (theme Witchcraft & magic) and learning them in the Shelves. They show the meaning / pictures. Each can be bought once per missing letter; the last one shows everything.
-- **Recipe books:** page 1 holds the 29 normal books; page 2 holds 20 **Mystery recipes**, easy to hard again, where the theme is a secret until the book is done.
+- **Recipe books:** page 1 holds the 29 normal books; page 2 holds 20 **Mystery recipes**, easy to hard again, where every word has its own secret theme, told when the book is done.
 - **Shelves** opens the spell book: hover a spell to read it, hold the mouse to learn it (keep holding for more ranks), drag to look around.
 - **Themes** (on the right in the spell book): you start with two (Animals, Witchcraft & magic), the other nine cost 60 knowledge each, Time & calendar 200.
 - **Stir** on the title screen (or press *Play*) and pick a book, brew recipes **1–29**. A frog picks its theme: click it to start (books 20-29 have a random theme for every word). With the frog spell you can feed it potions for another one.

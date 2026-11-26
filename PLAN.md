@@ -109,9 +109,9 @@
   shelves when the mouse is on it (and in its tooltip). All books are always open; on each page the first one not mastered glows.
   - **Page 1:** the 29 normal books, on three shelves.
   - **Page 2: Mystery recipes** (`GameData.MYSTERY_LIKE`, book numbers 30-49 in the code, 1-20 on their covers; dark violet books with a "?"):
-    each plays like a normal book, easy to hard again (1, 2, 4, 5, 7, 8 ... 28, 29), but its one theme is a **secret**: the sign says
-    "Secret theme", there is no frog screen and the little frog can't reroll it. The theme is picked quietly when the book is opened and
-    stays with it until it is brewed to the end (like a normal book's); the end screen then tells it. Never mixed. Their stars count like any others.
+    each plays like a normal book, easy to hard again (1, 2, 4, 5, 7, 8 ... 28, 29), but it is always **mixed** (a new random theme for every
+    word, never the same twice in a row) and the themes are **secret**: the sign says "Secret theme", there is no frog screen and the little
+    frog is gone. The end screen tells each word's theme beside it. Their stars count like any others.
 - **Pause** (*Menu* button or Esc): everything stands still. Leaving a book is only possible from here,
   so a stray click can't lose a run.
 - **Stars** are always shown as the star symbol with the number in it (`LevelStar`): a book's best, all stars together, what a spell needs.
@@ -192,7 +192,7 @@ ones after it. Finished levels keep their points. It costs no score, but help al
   Ten more are ready but **parked** in `scripts/parked_themes.gd` while the game changes: Sports & games, Clothes & style,
   Jobs & work, Music & art, Travel & vehicles, Town & city, Farm & garden, Science & inventions, Party & holidays,
   Doctor & health (43 of their words are in Alchemy now). Every word is in exactly one theme (`scripts/game_data.gd`).
-- **Books 20-29 are mixed** (not the mystery books): every word has its own random theme (never the same twice in a row), so they start without the frog's
+- **Books 20-29 are mixed** (and all mystery books, with the themes secret): every word has its own random theme (never the same twice in a row), so they start without the frog's
   theme screen. The little frog in play then changes only the current word.
 - The theme is shown with its icon on a parchment sign above the cauldron.
 - **The frog** (`scripts/theme_frog.gd`): whenever a book is opened (also *Play again* and *Next recipes*) a frog coughs up
