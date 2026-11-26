@@ -138,7 +138,7 @@ func _check_themes(main: Node) -> void:
 		for tired in [false, true]:
 			main.dealer = WordDealer.new()
 			if tired:
-				for t in ["Animals", "At home", "Ocean & sea", "Universe", "Food & kitchen", "School & words"]:
+				for t in ["Animals", "At home", "Ocean & sea", "Universe", "Food & kitchen", "Physics"]:
 					for e in GameData.THEMES[t]:
 						main.dealer.mark_seen(t, e[0])
 			main.theme_order = []
@@ -280,7 +280,7 @@ func _check_gameplay() -> void:
 		_fail("a new game knows the potions already")
 	main.always_words = {}  # OWL and CAT in every Animals book have their own check
 	main.potions_known = {PotionArt.WISDOM: true, PotionArt.VISION: true}  # learning them has its own check
-	main.spelled = {"eye": true, "curious": true, "condense": true, "orchard": true, "moon": true, "cheese": true, "slow": true, "kettle": true, "immediately": true, "hourglass": true, "wisdom": true, "vision": true, "owl": true, "cat": true, "mouse": true, "raven": true, "frog": true, "chameleon": true, "raccoon": true}
+	main.spelled = {"eye": true, "curious": true, "condense": true, "orchard": true, "moon": true, "cheese": true, "slow": true, "kettle": true, "immediately": true, "hourglass": true, "wisdom": true, "vision": true, "owl": true, "cat": true, "mouse": true, "raven": true, "frog": true, "chameleon": true, "raccoon": true, "signal": true, "impatient": true}
 	root.add_child(main)
 	await process_frame
 	await _check_menus(main)
@@ -1920,6 +1920,8 @@ func _check_theme_shop(main: Node) -> void:
 	main.score = 200
 	if not main.skill_buy("theme:Time & calendar") or main.score != 0 or not ("Time & calendar" in main.themes_owned):
 		_fail("Time & calendar can't be bought for 200")
+	if main._renamed(["School & words"]) != ["Physics"]:
+		_fail("a save with School & words does not get Physics")
 	if main._renamed(["Animals", "Space & sky"]) != ["Animals", "Universe"]:
 		_fail("a theme from an old save has no new name")
 	main._cheat_click(book.node_global_pos("themes"), true)

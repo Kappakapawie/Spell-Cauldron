@@ -61,9 +61,9 @@
     | 40 | Raven familiar (needs cat) | every 20 s a small raven (red for a vowel, black for a consonant) settles over an empty space you can see (shown, or opened by the cat for every letter missing there); it stays until the word is brewed; costs no score | 1 | 100 |
     | 40 | Keen eyes (needs raven) | spell EYE first (theme Body & feelings, any book). The raven is 1 s quicker | 10 (20 s→10 s) | 45, ×1.25 |
     | 55 | Chameleon | when charged (10 s), shows whether the next letter you let go of is in the right place: green with a tick or red with a cross; costs no score | 1 | 170 |
-    | 55 | Quick colors (needs chameleon) | the chameleon charges 1 s quicker | 8 (10 s→2 s) | 60, ×1.3 |
+    | 55 | Quick colors (needs chameleon) | spell SIGNAL first (theme Universe). The chameleon charges 1 s quicker | 8 (10 s→2 s) | 60, ×1.3 |
     | 70 | Raccoon | every 20 s it steals a wrong letter from the table (never one you placed); costs no score | 1 | 220 |
-    | 70 | Sneaky paws (needs raccoon) | the raccoon is 1 s quicker | 10 (20 s→10 s) | 60, ×1.25 |
+    | 70 | Sneaky paws (needs raccoon) | spell IMPATIENT first (theme Body & feelings). The raccoon is 1 s quicker | 10 (20 s→10 s) | 60, ×1.25 |
     | 80 | Your cauldron (the middle of the tree; id `lucky`) | +1 potion per brewed word | 3 | 225, ×1.7 |
     | 40 | Hallucination (at the Vision shelf) | spell CONDENSE first (theme Alchemy, books 9 and 12-19). 10 % more chance of one free Vision at the start of a word: no potion, no lost stars | 5 (10→50 %) | 100, ×1.5 |
   - **Something new unlocked** (`scripts/unlock_flight.gd`): when a spell can be learned for the first time, or a pet's name was spelled, its icon pops
@@ -78,7 +78,7 @@
   - Saves from when there were 30 books: the old books 1 and 2 (the same) become book 1 with the best of both, the others move up one place.
   - **OWL and CAT** are in every book of the theme Animals, **WISDOM and VISION** in every book of Witchcraft & magic, **HOURGLASS** in every book of Time & calendar, whatever their length
     (`always_words`), until they are learned. **SLOW, MOON and EYE** too in theirs, but only until they are spelled (`UNTIL_SPELLED`).
-  - **Spell their names:** owl, cat, mouse, raven, chameleon, raccoon, frog, the two potions, the hourglass, Slow sand (SLOW), Golden sand (IMMEDIATELY), Clear sight (KETTLE), Potion discount (ORCHARD), Full moon (MOON), Cheese (CHEESE), Hallucination (CONDENSE), Keen eyes (EYE) and Quick paws (CURIOUS) can only be learned once you have brewed that word. Until
+  - **Spell their names:** owl, cat, mouse, raven, chameleon, raccoon, frog, the two potions, the hourglass, Slow sand (SLOW), Golden sand (IMMEDIATELY), Clear sight (KETTLE), Potion discount (ORCHARD), Full moon (MOON), Cheese (CHEESE), Hallucination (CONDENSE), Keen eyes (EYE), Quick paws (CURIOUS), Quick colors (SIGNAL) and Sneaky paws (IMPATIENT) can only be learned once you have brewed that word. Until
     then the spell is greyed out and the letters of the name float away from it. A ribbon names the theme the word is in, and the tooltip says
     "Special unlock: spell OWL in the theme Animals (book 1)." A name
     not spelled yet comes up whenever a fitting book of its theme is played. Saved; pets owned before this rule keep working.
@@ -190,8 +190,9 @@ ones after it. Finished levels keep their points. It costs no score, but help al
   Spells that still need stars (or another spell first) only shake.
 
 ## Word themes
-- 11 themes, about 120-170 words each (1520 words): Animals, Food & kitchen, Witchcraft & magic, Nature & weather,
-  At home, Ocean & sea, Universe (was Space & sky), Body & feelings, School & words, Time & calendar, Alchemy.
+- 11 themes, about 120-170 words each (1541 words): Animals, Food & kitchen, Witchcraft & magic, Nature & weather,
+  At home, Ocean & sea, Universe (was Space & sky), Body & feelings, Physics (replaced School & words; saves that had School & words get Physics),
+  Time & calendar, Alchemy. Physics took 92 words from the parked themes, most of them from Science & inventions.
   Ten more are ready but **parked** in `scripts/parked_themes.gd` while the game changes: Sports & games, Clothes & style,
   Jobs & work, Music & art, Travel & vehicles, Town & city, Farm & garden, Science & inventions, Party & holidays,
   Doctor & health (43 of their words are in Alchemy now). Every word is in exactly one theme (`scripts/game_data.gd`).

@@ -33,7 +33,7 @@ var theme_order: Array = []
 const START_THEMES := ["Animals", "Witchcraft & magic"]  ## the pets' names are in these
 const THEME_PRICE := 60
 const THEME_PRICES := {"Time & calendar": 200}  ## the dearer ones: this one leads to the hourglass
-const OLD_THEME_NAMES := {"Space & sky": "Universe"}  ## in older saves
+const OLD_THEME_NAMES := {"Space & sky": "Universe", "School & words": "Physics"}  ## in older saves (School & words was replaced by Physics)
 var themes_owned: Array = START_THEMES.duplicate()
 ## Words that are in every book of their theme, whatever their length, until what they unlock is learned.
 var always_words := {"Animals": ["owl", "cat"], "Witchcraft & magic": ["wisdom", "vision"], "Time & calendar": ["hourglass", "slow"],
@@ -181,11 +181,11 @@ const UPGRADES := [
 		"needs": "raven", "desc": "The raven is 1 second quicker per rank."},
 	{"id": "chameleon", "name": "Chameleon", "stars": 55, "base": 170, "growth": 1.0, "max": 1, "spell": "chameleon",
 		"desc": "When it is charged, it shows whether the next letter you let go of is in the right place: green or red. It charges again in 10 seconds. Click the chameleon to pause it."},
-	{"id": "chameleon_speed", "name": "Quick colors", "stars": 55, "base": 60, "growth": 1.3, "max": 8,
+	{"id": "chameleon_speed", "name": "Quick colors", "stars": 55, "base": 60, "growth": 1.3, "max": 8, "spell": "signal",
 		"needs": "chameleon", "desc": "The chameleon charges 1 second quicker per rank."},
 	{"id": "raccoon", "name": "Raccoon", "stars": 70, "base": 220, "growth": 1.0, "max": 1, "spell": "raccoon",
 		"desc": "Every 20 seconds the raccoon steals a wrong letter from your table. Click the raccoon to pause it."},
-	{"id": "raccoon_speed", "name": "Sneaky paws", "stars": 70, "base": 60, "growth": 1.25, "max": 10,
+	{"id": "raccoon_speed", "name": "Sneaky paws", "stars": 70, "base": 60, "growth": 1.25, "max": 10, "spell": "impatient",
 		"needs": "raccoon", "desc": "The raccoon is 1 second quicker per rank."},
 	{"id": "hallucination", "name": "Hallucination", "stars": 40, "base": 100, "growth": 1.5, "max": 5, "spell": "condense",
 		"desc": "At the start of a word there is a chance of a free Vision, without a potion and without losing stars: 10% per rank."},
@@ -3049,7 +3049,7 @@ const SKILL_TREE := [
 ## The themes grow from a starting node of their own, beside the spells, on both sides of a trunk: two in a row.
 const THEMES_START := Vector2(680, -232)
 const THEME_ROWS := ["Animals", "Witchcraft & magic", "Food & kitchen", "Nature & weather", "At home", "Time & calendar",
-	"Ocean & sea", "Universe", "Body & feelings", "School & words", "Alchemy"]
+	"Ocean & sea", "Universe", "Body & feelings", "Physics", "Alchemy"]
 var _tree_nodes: Array = []
 
 
