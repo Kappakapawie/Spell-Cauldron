@@ -25,7 +25,7 @@ Otherwise the game stops with "Identifier not declared": `godot --headless --pat
 | Phone version in a window | `Play Spell Cauldron (phone).bat` |
 | Choose continue / reset first | `Play Spell Cauldron (choose reset).bat` |
 | Smoke test (about 95 s) | `godot --headless --fixed-fps 60 --path . --script res://tests/smoke_test.gd` → `RESULT: PASS` |
-| Word and picture overview | `python docs/make_icon_sheet.py` makes `docs/icon_sheet.html`; run it after changing words |
+| Word and picture overview | `python docs/make_icon_sheet.py` makes `docs/icon_sheet.html`. **Claude runs it and commits the page with every change to words, themes or spells**: the user only opens it, never runs it |
 
 - **Small change = small check:** a short script or a screenshot of what was touched. The full smoke test is for changes to gameplay code,
   always with `--fixed-fps 60` (without it: 5-8 minutes) and a time limit of at least 280 s.
